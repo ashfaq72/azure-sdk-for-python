@@ -1,5 +1,11 @@
 # Release History
 
+## 1.2.0b4 (Unreleased)
+
+### Features Added
+- Added support for API version `2024-05-01-preview`, This gives us functionality for 10DLC capabilities .
+- Added support for 10DLC changes.
+
 ## 1.2.0b3 (2024-03-02)
 
 ### Features Added
@@ -7,7 +13,7 @@
 - Users will now be able to purchase from countries like `IT`, `AT`, `FR`, `NO`, `PT`. They can do so by agreeing not to resell phone numbers by setting consentToNotResellNumbers to true.
 - Added support for 10DLC changes.
 
-## 1.2.0 (2024-03-01)
+## 1.2.0b2 (2024-03-01)
 
 ### Features Added
 - Add support for number lookup
@@ -19,6 +25,7 @@
 ### Features Added
 - Number Lookup API public preview
 - API version `2023-05-01-preview` is the default
+
 
 ## 1.1.0 (2023-03-28)
 
