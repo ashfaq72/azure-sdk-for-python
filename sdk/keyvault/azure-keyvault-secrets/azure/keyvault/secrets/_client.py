@@ -62,7 +62,6 @@ class SecretClient(KeyVaultClientBase):
                 :dedent: 8
         """
         bundle = self._client.get_secret(
-            vault_base_url=self._vault_url,
             secret_name=name,
             secret_version=version or "",
             **kwargs
@@ -118,7 +117,6 @@ class SecretClient(KeyVaultClientBase):
         )
 
         bundle = self._client.set_secret(
-            vault_base_url=self.vault_url,
             secret_name=name,
             parameters=parameters,
             **kwargs
@@ -175,7 +173,6 @@ class SecretClient(KeyVaultClientBase):
         )
 
         bundle = self._client.update_secret(
-            self.vault_url,
             name,
             secret_version=version or "",
             parameters=parameters,
@@ -202,7 +199,6 @@ class SecretClient(KeyVaultClientBase):
 
         """
         return self._client.get_secrets(
-            self._vault_url,
             maxresults=kwargs.pop("max_page_size", None),
             cls=lambda objs: [SecretProperties._from_secret_item(x) for x in objs],
             **kwargs
@@ -229,7 +225,6 @@ class SecretClient(KeyVaultClientBase):
 
         """
         return self._client.get_secret_versions(
-            self._vault_url,
             name,
             maxresults=kwargs.pop("max_page_size", None),
             cls=lambda objs: [SecretProperties._from_secret_item(x) for x in objs],
@@ -257,7 +252,7 @@ class SecretClient(KeyVaultClientBase):
                 :dedent: 8
 
         """
-        backup_result = self._client.backup_secret(self.vault_url, name, **kwargs)
+        backup_result = self._client.backup_secret(name, **kwargs)
         return cast(bytes, backup_result.value)
 
     @distributed_trace
@@ -282,7 +277,6 @@ class SecretClient(KeyVaultClientBase):
 
         """
         bundle = self._client.restore_secret(
-            self.vault_url,
             parameters=self._models.SecretRestoreParameters(secret_bundle_backup=backup),
             **kwargs
         )
@@ -321,7 +315,6 @@ class SecretClient(KeyVaultClientBase):
             polling_interval = 2
         # Ignore pyright warning about return type not being iterable because we use `cls` to return a tuple
         pipeline_response, deleted_secret_bundle = self._client.delete_secret(
-            vault_base_url=self.vault_url,
             secret_name=name,
             cls=lambda pipeline_response, deserialized, _: (pipeline_response, deserialized),
             **kwargs,
@@ -360,7 +353,7 @@ class SecretClient(KeyVaultClientBase):
                 :dedent: 8
 
         """
-        bundle = self._client.get_deleted_secret(self.vault_url, name, **kwargs)
+        bundle = self._client.get_deleted_secret(name, **kwargs)
         return DeletedSecret._from_deleted_secret_bundle(bundle)
 
     @distributed_trace
@@ -382,7 +375,6 @@ class SecretClient(KeyVaultClientBase):
 
         """
         return self._client.get_deleted_secrets(
-            self._vault_url,
             maxresults=kwargs.pop("max_page_size", None),
             cls=lambda objs: [DeletedSecret._from_deleted_secret_item(x) for x in objs],
             **kwargs
@@ -413,7 +405,7 @@ class SecretClient(KeyVaultClientBase):
                 secret_client.purge_deleted_secret("secret-name")
 
         """
-        self._client.purge_deleted_secret(self.vault_url, name, **kwargs)
+        self._client.purge_deleted_secret(name, **kwargs)
 
     @distributed_trace
     def begin_recover_deleted_secret(self, name: str, **kwargs: Any) -> LROPoller[SecretProperties]:
@@ -450,7 +442,6 @@ class SecretClient(KeyVaultClientBase):
             polling_interval = 2
         # Ignore pyright warning about return type not being iterable because we use `cls` to return a tuple
         pipeline_response, recovered_secret_bundle = self._client.recover_deleted_secret(
-            vault_base_url=self.vault_url,
             secret_name=name,
             cls=lambda pipeline_response, deserialized, _: (pipeline_response, deserialized),
             **kwargs,
