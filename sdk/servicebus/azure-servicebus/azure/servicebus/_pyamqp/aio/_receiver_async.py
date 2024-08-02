@@ -201,7 +201,7 @@ class ReceiverLink(Link):
     async def send_disposition(
         self,
         *,
-        wait: Union[bool, float] = False,
+        wait: Union[bool, float] = False, # pylint: disable=unused-argument
         first_delivery_id: int,
         last_delivery_id: Optional[int] = None,
         delivery_tag: bytes,
@@ -220,4 +220,3 @@ class ReceiverLink(Link):
             batchable,
             on_disposition=on_disposition
         )
-        

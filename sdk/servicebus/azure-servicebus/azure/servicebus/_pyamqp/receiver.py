@@ -169,7 +169,7 @@ class ReceiverLink(Link):
 
             )
             self._pending_receipts.append(delivery)
-            
+
         self._session._outgoing_disposition(disposition_frame) # pylint: disable=protected-access
         self._received_delivery_tags.remove(delivery_tag)
 
@@ -203,7 +203,7 @@ class ReceiverLink(Link):
     def send_disposition(
         self,
         *,
-        wait: Union[bool, float] = False,
+        wait: Union[bool, float] = False, # pylint: disable=unused-argument
         first_delivery_id: int,
         last_delivery_id: Optional[int] = None,
         settled: Optional[bool] = None,
