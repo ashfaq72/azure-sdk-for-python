@@ -83,6 +83,7 @@ class ReceiverLink(Link):
         self.delivery_count = frame[9]
         self.current_link_credit = self.link_credit
         await self._outgoing_flow()
+        await self._update_pending_receipts()
 
     async def _incoming_flow(self, frame):
         drain = frame[8]  # drain
@@ -92,6 +93,7 @@ class ReceiverLink(Link):
                 self._drain_state = False
                 self._received_drain_response = True
                 self.current_link_credit = frame[6]  # link_credit
+        await self._update_pending_receipts()
 
     async def _incoming_transfer(self, frame):
         if self.network_trace:
@@ -135,6 +137,7 @@ class ReceiverLink(Link):
         batchable: Optional[bool],
         *,
         on_disposition: Optional[Callable] = None,
+        timeout: Optional[float] = None
     ):
         disposition_frame = DispositionFrame(
             role=self.role, first=first, last=last, settled=settled, state=state, batchable=batchable
@@ -154,6 +157,7 @@ class ReceiverLink(Link):
                 transfer_state=state,
                 start=time.time(),
                 sent=True,
+                timeout=timeout,
             )
             self._pending_receipts.append(delivery)
 
@@ -170,6 +174,7 @@ class ReceiverLink(Link):
                 continue
             unsettled.append(delivery)
         self._pending_receipts = unsettled
+        await self._update_pending_receipts()
 
     async def attach(self):
         await super().attach()
@@ -181,6 +186,12 @@ class ReceiverLink(Link):
         # for delivery in self._pending_receipts:
         #     await delivery.on_settled(LinkDeliverySettleReason.NOT_DELIVERED, frame[2])
         self._pending_receipts = []
+
+    async def _update_pending_receipts(self):
+        for delivery in self._pending_receipts:
+            if delivery.timeout and (time.time() - delivery.start) >= delivery.timeout:
+                await delivery.on_settled(LinkDeliverySettleReason.TIMEOUT, None)
+                continue
 
     async def _incoming_detach(self, frame):
         await super(ReceiverLink, self)._incoming_detach(frame)
@@ -197,6 +208,7 @@ class ReceiverLink(Link):
         delivery_state: Optional[Union[Received, Accepted, Rejected, Released, Modified]] = None,
         batchable: Optional[bool] = None,
         on_disposition: Optional[Callable] = None,
+        timeout: Optional[float] = None
     ):
         self._check_if_closed()
         await self._outgoing_disposition(
@@ -206,5 +218,6 @@ class ReceiverLink(Link):
             settled,
             delivery_state,
             batchable,
-            on_disposition=on_disposition
+            on_disposition=on_disposition,
+            timeout=timeout,
         )
