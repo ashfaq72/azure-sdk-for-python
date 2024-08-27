@@ -205,6 +205,7 @@ class ReceiverLink(Link):
         wait: Union[bool, float] = False, # pylint: disable=unused-argument
         first_delivery_id: int,
         last_delivery_id: Optional[int] = None,
+        delivery_tag: Optional[bytes] = None,
         settled: Optional[bool] = None,
         delivery_state: Optional[Union[Received, Accepted, Rejected, Released, Modified]] = None,
         batchable: Optional[bool] = None,
@@ -215,6 +216,7 @@ class ReceiverLink(Link):
         self._outgoing_disposition(
             first_delivery_id,
             last_delivery_id,
+            delivery_tag,
             settled,
             delivery_state,
             batchable,
