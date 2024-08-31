@@ -119,19 +119,9 @@ class TestGlobalDBMock(unittest.TestCase):
     host = test_config.TestConfig.global_host
     write_location_host = test_config.TestConfig.write_location_host
     read_location_host = test_config.TestConfig.read_location_host
-    masterKey = test_config.TestConfig.global_masterKey
 
     write_location = test_config.TestConfig.write_location
     read_location = test_config.TestConfig.read_location
-
-    @classmethod
-    def setUpClass(cls):
-        if (cls.masterKey == '[YOUR_KEY_HERE]' or
-                cls.host == '[YOUR_GLOBAL_ENDPOINT_HERE]'):
-            raise Exception(
-                "You must specify your Azure Cosmos account values for "
-                "'masterKey' and 'host' at the top of this class to run the "
-                "tests.")
 
     def setUp(self):
         self.endpoint_discovery_retry_count = 0
@@ -173,7 +163,7 @@ class TestGlobalDBMock(unittest.TestCase):
         connection_policy.EnableEndpointDiscovery = True
 
         write_location_client = cosmos_client.CosmosClient(TestGlobalDBMock.write_location_host,
-                                                           TestGlobalDBMock.masterKey,
+                                                           test_config.TestConfig.credential,
                                                            consistency_level="Session",
                                                            connection_policy=connection_policy)
         self.assertEqual(write_location_client.client_connection.WriteEndpoint,
@@ -186,7 +176,7 @@ class TestGlobalDBMock(unittest.TestCase):
         connection_policy = documents.ConnectionPolicy()
         connection_policy.EnableEndpointDiscovery = True
 
-        client = cosmos_client.CosmosClient(TestGlobalDBMock.host, TestGlobalDBMock.masterKey,
+        client = cosmos_client.CosmosClient(TestGlobalDBMock.host, test_config.TestConfig.credential,
                                             consistency_level="Session", connection_policy=connection_policy)
 
         self.assertEqual(client.client_connection.WriteEndpoint, TestGlobalDBMock.write_location_host)

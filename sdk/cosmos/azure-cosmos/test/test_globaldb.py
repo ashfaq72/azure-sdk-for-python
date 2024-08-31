@@ -42,10 +42,10 @@ def _mock_get_database_account(url_connection):
 @pytest.mark.cosmosEmulator
 class TestGlobalDB(unittest.TestCase):
     host = test_config.TestConfig.global_host
+    credential = test_config.TestConfig.credential
     write_location_host = test_config.TestConfig.write_location_host
     read_location_host = test_config.TestConfig.read_location_host
     read_location2_host = test_config.TestConfig.read_location2_host
-    masterKey = test_config.TestConfig.global_masterKey
 
     write_location = test_config.TestConfig.write_location
     read_location = test_config.TestConfig.read_location
@@ -74,14 +74,7 @@ class TestGlobalDB(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if (cls.masterKey == '[YOUR_KEY_HERE]' or
-                cls.host == '[YOUR_GLOBAL_ENDPOINT_HERE]'):
-            return (
-                "You must specify your Azure Cosmos account values for "
-                "'masterKey' and 'host' at the top of this class to run the "
-                "tests.")
-
-        cls.client = cosmos_client.CosmosClient(cls.host, cls.masterKey)
+        cls.client = cosmos_client.CosmosClient(cls.host, cls.configs.credential)
         cls.test_db = cls.client.get_database_client(cls.configs.TEST_DATABASE_ID)
         cls.test_coll = cls.test_db.get_container_client(cls.configs.TEST_SINGLE_PARTITION_CONTAINER_ID)
 
@@ -89,7 +82,7 @@ class TestGlobalDB(unittest.TestCase):
         connection_policy = documents.ConnectionPolicy()
         connection_policy.EnableEndpointDiscovery = False
 
-        client = cosmos_client.CosmosClient(TestGlobalDB.host, TestGlobalDB.masterKey,
+        client = cosmos_client.CosmosClient(TestGlobalDB.host, self.configs.credential,
                                             connection_policy=connection_policy)
 
         document_definition = {'id': 'doc',
@@ -117,7 +110,7 @@ class TestGlobalDB(unittest.TestCase):
         connection_policy.EnableEndpointDiscovery = True
         document_definition['id'] = 'doc2'
 
-        client = cosmos_client.CosmosClient(TestGlobalDB.host, TestGlobalDB.masterKey,
+        client = cosmos_client.CosmosClient(TestGlobalDB.host, TestGlobalDB.credential,
                                             connection_policy=connection_policy)
 
         database = client.get_database_client(self.configs.TEST_DATABASE_ID)
@@ -147,8 +140,7 @@ class TestGlobalDB(unittest.TestCase):
         connection_policy.EnableEndpointDiscovery = False
 
         read_location_client = cosmos_client.CosmosClient(self.read_location_host,
-                                                          self.masterKey,
-                                                          connection_policy=connection_policy)
+                                   self.credential, connection_policy=connection_policy)
 
         document_definition = {'id': 'doc1',
                                'name': 'sample document',
@@ -173,7 +165,7 @@ class TestGlobalDB(unittest.TestCase):
 
         connection_policy.EnableEndpointDiscovery = True
         read_location_client = cosmos_client.CosmosClient(self.read_location_host,
-                                                          self.masterKey,
+                                                          self.credential,
                                                           connection_policy=connection_policy)
 
         database = read_location_client.get_database_client(self.configs.TEST_DATABASE_ID)
@@ -187,8 +179,8 @@ class TestGlobalDB(unittest.TestCase):
         connection_policy = documents.ConnectionPolicy()
         connection_policy.EnableEndpointDiscovery = True
 
-        client = cosmos_client.CosmosClient(self.host, self.masterKey,
-                                            connection_policy=connection_policy)
+        client = cosmos_client.CosmosClient(self.host, self.credential, connection_policy=connection_policy)
+
 
         document_definition = {'id': 'doc3',
                                'pk': 'pk',
@@ -218,7 +210,7 @@ class TestGlobalDB(unittest.TestCase):
         if is_not_default_host(self.read_location2):  # Client init will fail if no read location given
             connection_policy.PreferredLocations = [self.read_location2]
 
-            client = cosmos_client.CosmosClient(self.host, self.masterKey,
+            client = cosmos_client.CosmosClient(self.host, self.credential,
                                                 connection_policy=connection_policy)
 
             database = client.get_database_client(self.configs.TEST_DATABASE_ID)
@@ -244,15 +236,14 @@ class TestGlobalDB(unittest.TestCase):
         connection_policy = documents.ConnectionPolicy()
         connection_policy.EnableEndpointDiscovery = False
 
-        client = cosmos_client.CosmosClient(self.host, self.masterKey,
-                                            connection_policy=connection_policy)
+        client = cosmos_client.CosmosClient(self.host, self.credential, connection_policy=connection_policy)
 
         # When EnableEndpointDiscovery is set to False, both Read and Write Endpoints point to endpoint passed while creating the client instance
         self.assertEqual(client.client_connection.WriteEndpoint, self.host)
         self.assertEqual(client.client_connection.ReadEndpoint, self.host)
 
         connection_policy.EnableEndpointDiscovery = True
-        client = cosmos_client.CosmosClient(self.host, self.masterKey,
+        client = cosmos_client.CosmosClient(self.host, self.credential,
                                             connection_policy=connection_policy)
 
         # If no preferred locations is set, we return the write endpoint as ReadEndpoint for better latency performance, write endpoint is set as expected
@@ -264,7 +255,7 @@ class TestGlobalDB(unittest.TestCase):
 
         if is_not_default_host(self.read_location2):
             connection_policy.PreferredLocations = [self.read_location2]
-            client = cosmos_client.CosmosClient(self.host, self.masterKey,
+            client = cosmos_client.CosmosClient(self.host, self.credential,
                                                 connection_policy=connection_policy)
 
             # Test that the preferred location is set as ReadEndpoint instead of default write endpoint when no preference is set
@@ -274,7 +265,7 @@ class TestGlobalDB(unittest.TestCase):
                              self.read_location2_host)
 
     def test_global_db_update_locations_cache(self):
-        client = cosmos_client.CosmosClient(self.host, self.masterKey)
+        client = cosmos_client.CosmosClient(self.host, self.credential)
 
         writable_locations = [{'name': self.write_location,
                                'databaseAccountEndpoint': self.write_location_host}]
@@ -335,8 +326,7 @@ class TestGlobalDB(unittest.TestCase):
             connection_policy = documents.ConnectionPolicy()
             connection_policy.PreferredLocations = [self.read_location2]
 
-            client = cosmos_client.CosmosClient(self.host, self.masterKey,
-                                                connection_policy=connection_policy)
+            client = cosmos_client.CosmosClient(self.host, self.credential, connection_policy=connection_policy)
 
             write_endpoint, read_endpoint = client.client_connection._global_endpoint_manager.location_cache.update_location_cache(
                 writable_locations, readable_locations)
@@ -355,8 +345,7 @@ class TestGlobalDB(unittest.TestCase):
             connection_policy = documents.ConnectionPolicy()
             connection_policy.PreferredLocations = [self.read_location2]
 
-            client = cosmos_client.CosmosClient(self.host, self.masterKey,
-                                                connection_policy=connection_policy)
+            client = cosmos_client.CosmosClient(self.host, self.credential, connection_policy=connection_policy)
 
             write_endpoint, read_endpoint = client.client_connection._global_endpoint_manager.location_cache.update_location_cache(
                 writable_locations, readable_locations)
@@ -373,8 +362,7 @@ class TestGlobalDB(unittest.TestCase):
                                    'databaseAccountEndpoint': self.read_location2_host}]
 
             connection_policy.EnableEndpointDiscovery = False
-            client = cosmos_client.CosmosClient(self.host, self.masterKey,
-                                                connection_policy=connection_policy)
+            client = cosmos_client.CosmosClient(self.host, self.credential, connection_policy=connection_policy)
 
             write_endpoint, read_endpoint = client.client_connection._global_endpoint_manager.location_cache.update_location_cache(
                 writable_locations, readable_locations)
@@ -401,7 +389,7 @@ class TestGlobalDB(unittest.TestCase):
         self.assertEqual(locational_endpoint, 'https://contoso-EastUS.documents.azure.com:443/')
 
     def test_global_db_endpoint_discovery_retry_policy_mock(self):
-        client = cosmos_client.CosmosClient(self.host, self.masterKey)
+        client = cosmos_client.CosmosClient(self.host, self.credential)
 
         self.OriginalExecuteFunction = _retry_utility.ExecuteFunction
         _retry_utility.ExecuteFunction = _mock_execute_function

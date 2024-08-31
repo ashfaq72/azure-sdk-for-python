@@ -26,22 +26,13 @@ class TestQueryCrossPartitionAsync(unittest.IsolatedAsyncioTestCase):
     client: CosmosClient = None
     config = test_config.TestConfig
     host = config.host
-    masterKey = config.masterKey
     connectionPolicy = config.connectionPolicy
+    credential = config.credential_async
     TEST_CONTAINER_ID = str(uuid.uuid4())
     TEST_DATABASE_ID = config.TEST_DATABASE_ID
 
-    @classmethod
-    def setUpClass(cls):
-        if (cls.masterKey == '[YOUR_KEY_HERE]' or
-                cls.host == '[YOUR_ENDPOINT_HERE]'):
-            raise Exception(
-                "You must specify your Azure Cosmos account values for "
-                "'masterKey' and 'host' at the top of this class to run the "
-                "tests.")
-
     async def asyncSetUp(self):
-        self.client = CosmosClient(self.host, self.masterKey)
+        self.client = CosmosClient(self.host, self.credential)
         self.created_db = self.client.get_database_client(self.TEST_DATABASE_ID)
         self.created_container = await self.created_db.create_container(
             self.TEST_CONTAINER_ID,

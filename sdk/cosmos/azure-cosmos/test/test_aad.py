@@ -92,11 +92,11 @@ class TestAAD(unittest.TestCase):
     container: ContainerProxy = None
     configs = test_config.TestConfig
     host = configs.host
-    masterKey = configs.masterKey
+    credential = configs.credential
 
     @classmethod
     def setUpClass(cls):
-        cls.client = cosmos_client.CosmosClient(cls.host, cls.masterKey)
+        cls.client = cosmos_client.CosmosClient(cls.host, cls.credential)
         cls.database = cls.client.get_database_client(cls.configs.TEST_DATABASE_ID)
         cls.container = cls.database.get_container_client(cls.configs.TEST_SINGLE_PARTITION_CONTAINER_ID)
 

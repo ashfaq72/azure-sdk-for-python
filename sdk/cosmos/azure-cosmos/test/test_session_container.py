@@ -19,7 +19,8 @@ class TestSessionContainer(unittest.TestCase):
     connectionPolicy = test_config.TestConfig.connectionPolicy
 
     def setUp(self):
-        self.client = cosmos_client.CosmosClient(self.host, self.master_key, consistency_level="Session",
+        self.client = cosmos_client.CosmosClient(self.host, test_config.TestConfig.credential,
+                                                 consistency_level="Session",
                                                  connection_policy=self.connectionPolicy)
         self.session = self.client.client_connection.Session
 

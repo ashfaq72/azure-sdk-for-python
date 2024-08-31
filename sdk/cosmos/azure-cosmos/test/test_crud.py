@@ -57,9 +57,11 @@ class TestCRUDOperations(unittest.TestCase):
     configs = test_config.TestConfig
     host = configs.host
     masterKey = configs.masterKey
+    credential = configs.credential
     connectionPolicy = configs.connectionPolicy
     last_headers = []
     client: cosmos_client.CosmosClient = None
+    client_master_key: cosmos_client.CosmosClient = None
 
     def __AssertHTTPFailureWithStatus(self, status_code, func, *args, **kwargs):
         """Assert HTTP failure with status.
@@ -82,8 +84,10 @@ class TestCRUDOperations(unittest.TestCase):
                 "You must specify your Azure Cosmos account values for "
                 "'masterKey' and 'host' at the top of this class to run the "
                 "tests.")
-        cls.client = cosmos_client.CosmosClient(cls.host, cls.masterKey)
+        cls.client = cosmos_client.CosmosClient(cls.host, cls.credential)
+        cls.client_master_key = cosmos_client.CosmosClient(cls.host, cls.masterKey)
         cls.databaseForTest = cls.client.get_database_client(cls.configs.TEST_DATABASE_ID)
+        cls.databaseMasterKeyForTest = cls.client_master_key.get_database_client(cls.configs.TEST_DATABASE_ID)
 
     def test_database_crud(self):
         database_id = str(uuid.uuid4())
@@ -457,7 +461,7 @@ class TestCRUDOperations(unittest.TestCase):
         created_db.delete_container(created_collection.id)
 
     def test_partitioned_collection_permissions(self):
-        created_db = self.databaseForTest
+        created_db = self.databaseMasterKeyForTest
 
         collection_id = 'test_partitioned_collection_permissions all collection' + str(uuid.uuid4())
 
@@ -1002,7 +1006,7 @@ class TestCRUDOperations(unittest.TestCase):
     def test_user_crud(self):
         # Should do User CRUD operations successfully.
         # create database
-        db = self.databaseForTest
+        db = self.databaseMasterKeyForTest
         # list users
         users = list(db.list_users())
         before_create_count = len(users)
@@ -1045,7 +1049,7 @@ class TestCRUDOperations(unittest.TestCase):
 
     def test_user_upsert(self):
         # create database
-        db = self.databaseForTest
+        db = self.databaseMasterKeyForTest
 
         # read users and check count
         users = list(db.list_users())
@@ -1100,7 +1104,7 @@ class TestCRUDOperations(unittest.TestCase):
     def test_permission_crud(self):
         # Should do Permission CRUD operations successfully
         # create database
-        db = self.databaseForTest
+        db = self.databaseMasterKeyForTest
         # create user
         user = db.create_user(body={'id': 'new user' + str(uuid.uuid4())})
         # list permissions
@@ -1151,7 +1155,7 @@ class TestCRUDOperations(unittest.TestCase):
 
     def test_permission_upsert(self):
         # create database
-        db = self.databaseForTest
+        db = self.databaseMasterKeyForTest
 
         # create user
         user = db.create_user(body={'id': 'new user' + str(uuid.uuid4())})
@@ -1241,7 +1245,7 @@ class TestCRUDOperations(unittest.TestCase):
 
             """
             # create database
-            db = self.databaseForTest
+            db = self.databaseMasterKeyForTest
             # create collection
             collection = db.create_container(
                 id='test_authorization' + str(uuid.uuid4()),
@@ -1812,7 +1816,7 @@ class TestCRUDOperations(unittest.TestCase):
 
             with self.assertRaises(Exception):
                 # client does a getDatabaseAccount on initialization, which will time out
-                cosmos_client.CosmosClient(TestCRUDOperations.host, TestCRUDOperations.masterKey, "Session",
+                cosmos_client.CosmosClient(TestCRUDOperations.host, TestCRUDOperations.credential, "Session",
                                            connection_policy=connection_policy)
 
     def test_client_request_timeout_when_connection_retry_configuration_specified(self):
@@ -1828,7 +1832,7 @@ class TestCRUDOperations(unittest.TestCase):
         )
         with self.assertRaises(AzureError):
             # client does a getDatabaseAccount on initialization, which will time out
-            cosmos_client.CosmosClient(TestCRUDOperations.host, TestCRUDOperations.masterKey, "Session",
+            cosmos_client.CosmosClient(TestCRUDOperations.host, TestCRUDOperations.credential, "Session",
                                        connection_policy=connection_policy)
 
     # TODO: Skipping this test to debug later
@@ -1843,7 +1847,7 @@ class TestCRUDOperations(unittest.TestCase):
         try:
             cosmos_client.CosmosClient(
                 "https://localhost:9999",
-                TestCRUDOperations.masterKey,
+                TestCRUDOperations.credential,
                 "Session",
                 retry_total=retries,
                 retry_read=retries,
@@ -1860,7 +1864,7 @@ class TestCRUDOperations(unittest.TestCase):
         with self.assertRaises(exceptions.CosmosClientTimeoutError):
             cosmos_client.CosmosClient(
                 "https://localhost:9999",
-                TestCRUDOperations.masterKey,
+                TestCRUDOperations.credential,
                 "Session",
                 retry_total=3,
                 timeout=1)
@@ -1868,7 +1872,7 @@ class TestCRUDOperations(unittest.TestCase):
         error_response = ServiceResponseError("Read timeout")
         timeout_transport = TimeoutTransport(error_response)
         client = cosmos_client.CosmosClient(
-            self.host, self.masterKey, "Session", transport=timeout_transport, passthrough=True)
+            self.host, self.credential, "Session", transport=timeout_transport, passthrough=True)
 
         with self.assertRaises(exceptions.CosmosClientTimeoutError):
             client.create_database_if_not_exists("test", timeout=2)
@@ -1876,7 +1880,7 @@ class TestCRUDOperations(unittest.TestCase):
         status_response = 500  # Users connection level retry
         timeout_transport = TimeoutTransport(status_response)
         client = cosmos_client.CosmosClient(
-            self.host, self.masterKey, "Session", transport=timeout_transport, passthrough=True)
+            self.host, self.credential, "Session", transport=timeout_transport, passthrough=True)
         with self.assertRaises(exceptions.CosmosClientTimeoutError):
             client.create_database("test", timeout=2)
 
@@ -1887,7 +1891,7 @@ class TestCRUDOperations(unittest.TestCase):
         status_response = 429  # Uses Cosmos custom retry
         timeout_transport = TimeoutTransport(status_response)
         client = cosmos_client.CosmosClient(
-            self.host, self.masterKey, "Session", transport=timeout_transport, passthrough=True)
+            self.host, self.credential, "Session", transport=timeout_transport, passthrough=True)
         with self.assertRaises(exceptions.CosmosClientTimeoutError):
             client.create_database_if_not_exists("test", timeout=2)
 
@@ -2288,7 +2292,7 @@ class TestCRUDOperations(unittest.TestCase):
         self.client.delete_database(db.id)
 
     def test_get_resource_with_dictionary_and_object(self):
-        created_db = self.databaseForTest
+        created_db = self.databaseMasterKeyForTest
 
         # read database with id
         read_db = self.client.get_database_client(created_db.id)

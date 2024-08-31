@@ -39,17 +39,10 @@ class TestCosmosHttpLogger(unittest.TestCase):
     logger_default = None
     config = test_config.TestConfig
     host = config.host
-    masterKey = config.masterKey
     connectionPolicy = config.connectionPolicy
 
     @classmethod
     def setUpClass(cls):
-        if (cls.masterKey == '[YOUR_KEY_HERE]' or
-                cls.host == '[YOUR_ENDPOINT_HERE]'):
-            raise Exception(
-                "You must specify your Azure Cosmos account values for "
-                "'masterKey' and 'host' at the top of this class to run the "
-                "tests.")
         cls.mock_handler_default = MockHandler()
         cls.mock_handler_diagnostic = MockHandler()
         cls.logger_default = logging.getLogger("testloggerdefault")
@@ -58,15 +51,15 @@ class TestCosmosHttpLogger(unittest.TestCase):
         cls.logger_diagnostic = logging.getLogger("testloggerdiagnostic")
         cls.logger_diagnostic.addHandler(cls.mock_handler_diagnostic)
         cls.logger_diagnostic.setLevel(logging.DEBUG)
-        cls.client_default = cosmos_client.CosmosClient(cls.host, cls.masterKey,
-                                                        consistency_level="Session",
-                                                        connection_policy=cls.connectionPolicy,
-                                                        logger=cls.logger_default)
-        cls.client_diagnostic = cosmos_client.CosmosClient(cls.host, cls.masterKey,
-                                                           consistency_level="Session",
-                                                           connection_policy=cls.connectionPolicy,
-                                                           logger=cls.logger_diagnostic,
-                                                           enable_diagnostics_logging=True)
+        cls.client_default = cosmos_client.CosmosClient(cls.host, cls.config.credential,
+                                   consistency_level="Session",
+                                   connection_policy=cls.connectionPolicy,
+                                   logger=cls.logger_default)
+        cls.client_diagnostic = cosmos_client.CosmosClient(cls.host, cls.config.credential,
+                                   consistency_level="Session",
+                                   connection_policy=cls.connectionPolicy,
+                                   logger=cls.logger_diagnostic,
+                                   enable_diagnostics_logging=True)
 
     def test_default_http_logging_policy(self):
         # Test if we can log into from creating a database

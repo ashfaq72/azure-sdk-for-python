@@ -13,26 +13,18 @@ from azure.cosmos.aio import CosmosClient, DatabaseProxy
 
 
 class TestVectorPolicyAsync(unittest.IsolatedAsyncioTestCase):
+    configs = test_config.TestConfig
     host = test_config.TestConfig.host
-    masterKey = test_config.TestConfig.masterKey
     connectionPolicy = test_config.TestConfig.connectionPolicy
+    credential = configs.credential_async
 
     client: CosmosClient = None
     created_database: DatabaseProxy = None
 
     TEST_DATABASE_ID = test_config.TestConfig.TEST_DATABASE_ID
 
-    @classmethod
-    def setUpClass(cls):
-        if (cls.masterKey == '[YOUR_KEY_HERE]' or
-                cls.host == '[YOUR_ENDPOINT_HERE]'):
-            raise Exception(
-                "You must specify your Azure Cosmos account values for "
-                "'masterKey' and 'host' at the top of this class to run the "
-                "tests.")
-
     async def asyncSetUp(self):
-        self.client = CosmosClient(self.host, self.masterKey)
+        self.client = CosmosClient(self.host, self.credential)
         self.created_database = self.client.get_database_client(self.TEST_DATABASE_ID)
         self.test_db = await self.client.create_database(str(uuid.uuid4()))
 
