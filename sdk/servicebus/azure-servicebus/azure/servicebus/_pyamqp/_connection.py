@@ -867,6 +867,7 @@ class Connection:  # pylint:disable=too-many-instance-attributes
         :rtype: None
         """
         self._connect()
+        _LOGGER.info("Opening AMQP connection %r.", self._container_id, extra=self._network_trace_params)
         self._outgoing_open()
         if self.state == ConnectionState.HDR_EXCH:
             self._set_state(ConnectionState.OPEN_SENT)
@@ -896,6 +897,7 @@ class Connection:  # pylint:disable=too-many-instance-attributes
                 ConnectionState.DISCARDING,
             ]:
                 return
+            _LOGGER.info("Closing AMQP connection %r.", self._container_id, extra=self._network_trace_params)
             self._outgoing_close(error=error)
             if error:
                 self._error = AMQPConnectionError(
