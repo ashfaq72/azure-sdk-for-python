@@ -88,7 +88,6 @@ def _get_run_from_run_history(flow_run_id, ml_client, project_scope):
 
 
 @pytest.mark.usefixtures("recording_injection", "recorded_test")
-@pytest.mark.localtest
 class TestEvaluate:
     @pytest.mark.skip(reason="Temporary skip to merge 37201, will re-enable in subsequent pr")
     def test_evaluate_with_groundedness_evaluator(self, model_config, data_file):
@@ -163,7 +162,6 @@ class TestEvaluate:
         finally:
             os.chdir(original_working_dir)
 
-    @pytest.mark.azuretest
     @pytest.mark.skip(reason="Temporary skip to merge 37201, will re-enable in subsequent pr")
     def test_evaluate_with_content_safety_evaluator(self, project_scope, data_file):
         input_data = pd.read_json(data_file, lines=True)
@@ -380,7 +378,6 @@ class TestEvaluate:
         assert "f1_score.f1_score" in metrics.keys()
 
     @pytest.mark.skipif(in_ci(), reason="This test fails in CI and needs to be investigate. Bug: 3458432")
-    @pytest.mark.azuretest
     def test_evaluate_track_in_cloud(
         self,
         questions_file,
@@ -425,7 +422,6 @@ class TestEvaluate:
         assert remote_run["runMetadata"]["displayName"] == evaluation_name
 
     @pytest.mark.skipif(in_ci(), reason="This test fails in CI and needs to be investigate. Bug: 3458432")
-    @pytest.mark.azuretest
     def test_evaluate_track_in_cloud_no_target(
         self,
         data_file,
