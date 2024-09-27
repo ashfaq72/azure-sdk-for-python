@@ -3,12 +3,14 @@
 # ---------------------------------------------------------
 
 from typing import Dict, Optional
+
 from typing_extensions import override
 
-from azure.identity import DefaultAzureCredential
 from azure.ai.evaluation._common.constants import EvaluationMetrics
 from azure.ai.evaluation._common.rai_service import evaluate_with_rai_service
 from azure.ai.evaluation._exceptions import EvaluationException
+from azure.identity import DefaultAzureCredential
+
 from . import EvaluatorBase
 
 
