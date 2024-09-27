@@ -44,7 +44,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('trainingDataContainer'))]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -53,7 +53,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('trainingDataContainer'), '-v3')]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -66,7 +66,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('testingDataContainer'))]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -79,7 +79,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('multiPageTestingDataContainer'))]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -88,7 +88,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('multiPageTestingDataContainer'), '-v3')]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -101,7 +101,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('multiPageTestingDataContainer2'))]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -110,7 +110,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('multiPageTestingDataContainer2'), '-v3')]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -123,7 +123,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('selectionMarkTrainingDataContainer'))]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -132,7 +132,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('selectionMarkTrainingDataContainer'), '-v3')]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -145,7 +145,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('labelTablesVariableRowsContainer'))]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -154,7 +154,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('labelTablesVariableRowsContainer'), '-v3')]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -167,7 +167,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('labelTablesFixedRowsContainer'))]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -176,7 +176,7 @@
             "type": "object",
             "defaultValue": {
                 "canonicalizedResource": "[concat('/blob/', parameters('blobStorageAccount'), '/', parameters('labelTablesFixedRowsContainer'), '-v3')]",
-                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT3H')]",
+                "signedExpiry": "[dateTimeAdd(utcNow('u'), 'PT8H')]",
                 "signedPermission": "rl",
                 "signedResource": "c"
             }
@@ -397,6 +397,10 @@
         "CONTAINER_SAS_URL_DYNAMIC_V2": {
             "type": "string",
             "value": "[concat(reference(parameters('blobResourceId'), '2019-06-01').primaryEndpoints.blob, parameters('labelTablesVariableRowsContainer'), '?', listServiceSas(parameters('blobResourceId'), '2019-06-01', parameters('labelTablesVariableRowsSasProperties')).serviceSasToken)]"
+        },
+        "FORMRECOGNIZER_ENDPOINT_SUFFIX": {
+            "type": "string",
+            "value": "[parameters('formRecognizerEndpointSuffix')]"
         }
     }
 }
