@@ -21,26 +21,29 @@
 
 """Create, read, update and delete items in the Azure Cosmos DB SQL API service.
 """
-from datetime import datetime, timezone
 import warnings
-from typing import Any, Dict, List, Optional, Sequence, Union, Tuple, Mapping, Type, cast
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence, Union, Tuple, Mapping, Type, cast, overload
 from typing_extensions import Literal
 
 from azure.core import MatchConditions
-from azure.core.tracing.decorator import distributed_trace
 from azure.core.paging import ItemPaged
+from azure.core.tracing.decorator import distributed_trace
 
-from ._cosmos_client_connection import CosmosClientConnection
 from ._base import (
     build_options,
     validate_cache_staleness_value,
     _deserialize_throughput,
     _replace_throughput,
     GenerateGuidId,
-    _set_properties_cache
+    _set_properties_cache,
+    ParsePaths,
+    TrimBeginningAndEndingSlashes
 )
+from ._change_feed.feed_range import FeedRange, FeedRangeEpk
+from ._cosmos_client_connection import CosmosClientConnection
+from ._routing.routing_range import Range, partition_key_range_to_range_string, PartitionKeyRange
 from .offer import Offer, ThroughputProperties
-from .scripts import ScriptsProxy
 from .partition_key import (
     NonePartitionKeyValue,
     PartitionKey,
@@ -48,6 +51,7 @@ from .partition_key import (
     _Undefined,
     _return_undefined_or_empty_partition_key
 )
+from .scripts import ScriptsProxy
 
 __all__ = ("ContainerProxy",)
 
@@ -128,6 +132,13 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         if partition_key == NonePartitionKeyValue:
             return _return_undefined_or_empty_partition_key(self.is_system_key)
         return cast(Union[str, int, float, bool, List[Union[str, int, float, bool]]], partition_key)
+
+    def _get_epk_range_for_partition_key( self, partition_key_value: PartitionKeyType) -> Range:
+        container_properties = self._get_properties()
+        partition_key_definition = container_properties["partitionKey"]
+        partition_key = PartitionKey(path=partition_key_definition["paths"], kind=partition_key_definition["kind"])
+
+        return partition_key._get_epk_range_for_partition_key(partition_key_value)
 
     def __get_client_container_caches(self) -> Dict[str, Dict[str, Any]]:
         return self.client_connection._container_properties_cache
@@ -248,6 +259,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             request_options["maxIntegratedCacheStaleness"] = max_integrated_cache_staleness_in_ms
         if self.container_link in self.__get_client_container_caches():
             request_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
+        self._add_request_context(request_options)
         return self.client_connection.ReadItem(document_link=doc_link, options=request_options, **kwargs)
 
     @distributed_trace
@@ -305,67 +317,210 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
 
         items = self.client_connection.ReadItems(
             collection_link=self.container_link, feed_options=feed_options, response_hook=response_hook, **kwargs)
+        # Change to be full range
+        self._add_request_context({})
         if response_hook:
             response_hook(self.client_connection.last_response_headers, items)
         return items
 
-    @distributed_trace
+    @overload
     def query_items_change_feed(
-        self,
-        partition_key_range_id: Optional[str] = None,
-        is_start_from_beginning: bool = False,
-        continuation: Optional[str] = None,
-        max_item_count: Optional[int] = None,
-        *,
-        start_time: Optional[datetime] = None,
-        partition_key: Optional[PartitionKeyType] = None,
-        priority: Optional[Literal["High", "Low"]] = None,
-        **kwargs: Any
+            self,
+            *,
+            max_item_count: Optional[int] = None,
+            start_time: Optional[Union[datetime, Literal["Now", "Beginning"]]] = None,
+            partition_key: PartitionKeyType,
+            priority: Optional[Literal["High", "Low"]] = None,
+            **kwargs: Any
     ) -> ItemPaged[Dict[str, Any]]:
         """Get a sorted list of items that were changed, in the order in which they were modified.
 
-        :param str partition_key_range_id: ChangeFeed requests can be executed against specific partition key ranges.
-            This is used to process the change feed in parallel across multiple consumers.
-        :param bool is_start_from_beginning: Get whether change feed should start from
-            beginning (true) or from current (false). By default, it's start from current (false).
-        :param max_item_count: Max number of items to be returned in the enumeration operation.
-        :param str continuation: e_tag value to be used as continuation for reading change feed.
-        :param int max_item_count: Max number of items to be returned in the enumeration operation.
-        :keyword ~datetime.datetime start_time: Specifies a point of time to start change feed. Provided value will be
-            converted to UTC. This value will be ignored if `is_start_from_beginning` is set to true.
-        :keyword partition_key: partition key at which ChangeFeed requests are targeted.
-        :paramtype partition_key: Union[str, int, float, bool, List[Union[str, int, float, bool]]]
-        :keyword Callable response_hook: A callable invoked with the response metadata.
+        :keyword int max_item_count: Max number of items to be returned in the enumeration operation.
+        :keyword start_time:The start time to start processing chang feed items.
+            Beginning: Processing the change feed items from the beginning of the change feed.
+            Now: Processing change feed from the current time, so only events for all future changes will be retrieved.
+            ~datetime.datetime: processing change feed from a point of time. Provided value will be converted to UTC.
+            By default, it is start from current ("Now")
+        :type start_time: Union[~datetime.datetime, Literal["Now", "Beginning"]]
+        :keyword partition_key: The partition key that is used to define the scope
+            (logical partition or a subset of a container)
+        :type partition_key: Union[str, int, float, bool, List[Union[str, int, float, bool]]]
         :keyword Literal["High", "Low"] priority: Priority based execution allows users to set a priority for each
             request. Once the user has reached their provisioned throughput, low priority requests are throttled
             before high priority requests start getting throttled. Feature must first be enabled at the account level.
+        :keyword Callable response_hook: A callable invoked with the response metadata.
         :returns: An Iterable of items (dicts).
-        :rtype: Iterable[dict[str, Any]]
+        :rtype: Iterable[Dict[str, Any]]
         """
-        if priority is not None:
-            kwargs['priority'] = priority
-        feed_options = build_options(kwargs)
-        response_hook = kwargs.pop('response_hook', None)
-        if partition_key_range_id is not None:
-            feed_options["partitionKeyRangeId"] = partition_key_range_id
-        if partition_key is not None:
-            feed_options["partitionKey"] = self._set_partition_key(partition_key)
-        if is_start_from_beginning is not None:
-            feed_options["isStartFromBeginning"] = is_start_from_beginning
-        if start_time is not None and is_start_from_beginning is False:
-            feed_options["startTime"] = start_time.astimezone(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')
-        if max_item_count is not None:
-            feed_options["maxItemCount"] = max_item_count
-        if continuation is not None:
-            feed_options["continuation"] = continuation
+        ...
 
+    @overload
+    def query_items_change_feed(
+            self,
+            *,
+            feed_range: str,
+            max_item_count: Optional[int] = None,
+            start_time: Optional[Union[datetime, Literal["Now", "Beginning"]]] = None,
+            priority: Optional[Literal["High", "Low"]] = None,
+            **kwargs: Any
+    ) -> ItemPaged[Dict[str, Any]]:
+
+        """Get a sorted list of items that were changed, in the order in which they were modified.
+
+        :keyword str feed_range: The feed range that is used to define the scope.
+        :keyword int max_item_count: Max number of items to be returned in the enumeration operation.
+        :keyword start_time: The start time to start processing chang feed items.
+            Beginning: Processing the change feed items from the beginning of the change feed.
+            Now: Processing change feed from the current time, so only events for all future changes will be retrieved.
+            ~datetime.datetime: processing change feed from a point of time. Provided value will be converted to UTC.
+            By default, it is start from current ("Now")
+        :type start_time: Union[~datetime.datetime, Literal["Now", "Beginning"]]
+        :keyword Literal["High", "Low"] priority: Priority based execution allows users to set a priority for each
+            request. Once the user has reached their provisioned throughput, low priority requests are throttled
+            before high priority requests start getting throttled. Feature must first be enabled at the account level.
+        :keyword Callable response_hook: A callable invoked with the response metadata.
+        :returns: An Iterable of items (dicts).
+        :rtype: Iterable[Dict[str, Any]]
+        """
+        ...
+
+    @overload
+    def query_items_change_feed(
+            self,
+            *,
+            continuation: str,
+            max_item_count: Optional[int] = None,
+            priority: Optional[Literal["High", "Low"]] = None,
+            **kwargs: Any
+    ) -> ItemPaged[Dict[str, Any]]:
+        """Get a sorted list of items that were changed, in the order in which they were modified.
+
+        :keyword str continuation: The continuation token retrieved from previous response.
+        :keyword int max_item_count: Max number of items to be returned in the enumeration operation.
+        :keyword Literal["High", "Low"] priority: Priority based execution allows users to set a priority for each
+            request. Once the user has reached their provisioned throughput, low priority requests are throttled
+            before high priority requests start getting throttled. Feature must first be enabled at the account level.
+        :keyword Callable response_hook: A callable invoked with the response metadata.
+        :returns: An Iterable of items (dicts).
+        :rtype: Iterable[Dict[str, Any]]
+        """
+        ...
+
+    @overload
+    def query_items_change_feed(
+            self,
+            *,
+            max_item_count: Optional[int] = None,
+            start_time: Optional[Union[datetime, Literal["Now", "Beginning"]]] = None,
+            priority: Optional[Literal["High", "Low"]] = None,
+            **kwargs: Any
+    ) -> ItemPaged[Dict[str, Any]]:
+        """Get a sorted list of items that were changed in the entire container,
+         in the order in which they were modified,
+
+        :keyword int max_item_count: Max number of items to be returned in the enumeration operation.
+        :keyword start_time:The start time to start processing chang feed items.
+            Beginning: Processing the change feed items from the beginning of the change feed.
+            Now: Processing change feed from the current time, so only events for all future changes will be retrieved.
+            ~datetime.datetime: processing change feed from a point of time. Provided value will be converted to UTC.
+            By default, it is start from current ("Now")
+        :type start_time: Union[~datetime.datetime, Literal["Now", "Beginning"]]
+        :keyword Literal["High", "Low"] priority: Priority based execution allows users to set a priority for each
+            request. Once the user has reached their provisioned throughput, low priority requests are throttled
+            before high priority requests start getting throttled. Feature must first be enabled at the account level.
+        :keyword Callable response_hook: A callable invoked with the response metadata.
+        :returns: An Iterable of items (dicts).
+        :rtype: Iterable[Dict[str, Any]]
+        """
+        ...
+
+    @distributed_trace
+    def query_items_change_feed(
+            self,
+            *args: Any,
+            **kwargs: Any
+    ) -> ItemPaged[Dict[str, Any]]:
+        # pylint: disable=too-many-statements
+        if kwargs.get("priority") is not None:
+            kwargs['priority'] = kwargs['priority']
+        feed_options = build_options(kwargs)
+
+        change_feed_state_context = {}
+        # Back compatibility with deprecation warnings for partition_key_range_id
+        if (args and args[0] is not None) or kwargs.get("partition_key_range_id") is not None:
+            warnings.warn(
+                "partition_key_range_id is deprecated. Please pass in feed_range instead.",
+                DeprecationWarning
+            )
+
+            try:
+                change_feed_state_context["partitionKeyRangeId"] = kwargs.pop('partition_key_range_id')
+            except KeyError:
+                change_feed_state_context['partitionKeyRangeId'] = args[0]
+
+        # Back compatibility with deprecation warnings for is_start_from_beginning
+        if (len(args) >= 2 and args[1] is not None) or kwargs.get("is_start_from_beginning") is not None:
+            warnings.warn(
+                "is_start_from_beginning is deprecated. Please pass in start_time instead.",
+                DeprecationWarning
+            )
+
+            if kwargs.get("start_time") is not None:
+                raise ValueError("is_start_from_beginning and start_time are exclusive, please only set one of them")
+
+            try:
+                is_start_from_beginning = kwargs.pop('is_start_from_beginning')
+            except KeyError:
+                is_start_from_beginning = args[1]
+
+            if is_start_from_beginning is True:
+                change_feed_state_context["startTime"] = "Beginning"
+
+        # parse start_time
+        if kwargs.get("start_time") is not None:
+
+            start_time = kwargs.pop('start_time')
+            if not isinstance(start_time, (datetime, str)):
+                raise TypeError(
+                    "'start_time' must be either a datetime object, or either the values 'Now' or 'Beginning'.")
+            change_feed_state_context["startTime"] = start_time
+
+        # parse continuation token
+        if len(args) >= 3 and args[2] is not None or feed_options.get("continuation") is not None:
+            try:
+                continuation = feed_options.pop('continuation')
+            except KeyError:
+                continuation = args[2]
+            change_feed_state_context["continuation"] = continuation
+
+        if len(args) >= 4 and args[3] is not None or kwargs.get("max_item_count") is not None:
+            try:
+                feed_options["maxItemCount"] = kwargs.pop('max_item_count')
+            except KeyError:
+                feed_options["maxItemCount"] = args[3]
+
+        if kwargs.get("partition_key") is not None:
+            change_feed_state_context["partitionKey"] =\
+                self._set_partition_key(cast(PartitionKeyType, kwargs.get('partition_key')))
+            request_context = {"partitionKey": change_feed_state_context["partitionKey"]}
+            change_feed_state_context["partitionKeyFeedRange"] =\
+                self._get_epk_range_for_partition_key(kwargs.pop('partition_key'))
+
+        if kwargs.get("feed_range") is not None:
+            change_feed_state_context["feedRange"] = kwargs.pop('feed_range')
+
+        container_properties = self._get_properties()
+        feed_options["changeFeedStateContext"] = change_feed_state_context
+        feed_options["containerRID"] = container_properties["_rid"]
+
+        response_hook = kwargs.pop('response_hook', None)
         if hasattr(response_hook, "clear"):
             response_hook.clear()
-        if self.container_link in self.__get_client_container_caches():
-            feed_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
+
         result = self.client_connection.QueryItemsChangeFeed(
             self.container_link, options=feed_options, response_hook=response_hook, **kwargs
         )
+        self._add_request_context(request_context)
         if response_hook:
             response_hook(self.client_connection.last_response_headers, result)
         return result
@@ -461,13 +616,14 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         if populate_index_metrics is not None:
             feed_options["populateIndexMetrics"] = populate_index_metrics
         if partition_key is not None:
+            partition_key_value = self._set_partition_key(partition_key)
             if self.__is_prefix_partitionkey(partition_key):
                 kwargs["isPrefixPartitionQuery"] = True
                 properties = self._get_properties()
                 kwargs["partitionKeyDefinition"] = properties["partitionKey"]
-                kwargs["partitionKeyDefinition"]["partition_key"] = partition_key
+                kwargs["partitionKeyDefinition"]["partition_key"] = partition_key_value
             else:
-                feed_options["partitionKey"] = self._set_partition_key(partition_key)
+                feed_options["partitionKey"] = partition_key_value
         if enable_scan_in_query is not None:
             feed_options["enableScanInQuery"] = enable_scan_in_query
         if max_integrated_cache_staleness_in_ms:
@@ -489,21 +645,18 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             response_hook=response_hook,
             **kwargs
         )
+        request_context = {"partitionKey": feed_options["partitionKey"]}
+        self._add_request_context(request_context)
         if response_hook:
             response_hook(self.client_connection.last_response_headers, items)
         return items
 
     def __is_prefix_partitionkey(
-        self, partition_key: PartitionKeyType
-    ) -> bool:
+        self, partition_key: PartitionKeyType) -> bool:
         properties = self._get_properties()
         pk_properties = properties["partitionKey"]
         partition_key_definition = PartitionKey(path=pk_properties["paths"], kind=pk_properties["kind"])
-        if partition_key_definition.kind != "MultiHash":
-            return False
-        if isinstance(partition_key, list) and len(partition_key_definition['paths']) == len(partition_key):
-            return False
-        return True
+        return partition_key_definition._is_prefix_partition_key(partition_key)
 
     @distributed_trace
     def replace_item(  # pylint:disable=docstring-missing-param
@@ -571,10 +724,12 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
 
         if self.container_link in self.__get_client_container_caches():
             request_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
-
-        return self.client_connection.ReplaceItem(
-            document_link=item_link, new_document=body, options=request_options, **kwargs
+        request_context = {}
+        result = self.client_connection.ReplaceItem(
+            document_link=item_link, new_document=body, request_context=request_context, options=request_options, **kwargs
         )
+        self._add_request_context(request_context)
+        return result
 
     @distributed_trace
     def upsert_item(  # pylint:disable=docstring-missing-param
@@ -637,13 +792,16 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             request_options["populateQueryMetrics"] = populate_query_metrics
         if self.container_link in self.__get_client_container_caches():
             request_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
-
-        return self.client_connection.UpsertItem(
+        request_context = {}
+        result = self.client_connection.UpsertItem(
             database_or_container_link=self.container_link,
             document=body,
+            request_context=request_context,
             options=request_options,
             **kwargs
         )
+        self._add_request_context(request_context)
+        return result
 
     @distributed_trace
     def create_item(  # pylint:disable=docstring-missing-param
@@ -714,8 +872,11 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             request_options["indexingDirective"] = indexing_directive
         if self.container_link in self.__get_client_container_caches():
             request_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
-        return self.client_connection.CreateItem(
-            database_or_container_link=self.container_link, document=body, options=request_options, **kwargs)
+        request_context = {}
+        result = self.client_connection.CreateItem(
+            database_or_container_link=self.container_link, document=body, request_context=request_context, options=request_options, **kwargs)
+        self._add_request_context(request_context)
+        return result
 
     @distributed_trace
     def patch_item(
@@ -781,8 +942,11 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         if self.container_link in self.__get_client_container_caches():
             request_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
         item_link = self._get_document_link(item)
-        return self.client_connection.PatchItem(
-            document_link=item_link, operations=patch_operations, options=request_options, **kwargs)
+        request_context = {}
+        result = self.client_connection.PatchItem(
+            document_link=item_link, operations=patch_operations, request_context=request_context, options=request_options, **kwargs)
+        self._add_request_context(request_context)
+        return result
 
     @distributed_trace
     def execute_item_batch(
@@ -833,10 +997,12 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             kwargs['priority'] = priority
         request_options = build_options(kwargs)
         request_options["partitionKey"] = self._set_partition_key(partition_key)
+        request_context = {"partitionKey": request_options["partitionKey"]}
         request_options["disableAutomaticIdGeneration"] = True
-
-        return self.client_connection.Batch(
+        result = self.client_connection.Batch(
             collection_link=self.container_link, batch_operations=batch_operations, options=request_options, **kwargs)
+        self._add_request_context(request_context)
+        return result
 
     @distributed_trace
     def delete_item(  # pylint:disable=docstring-missing-param
@@ -903,7 +1069,9 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         if self.container_link in self.__get_client_container_caches():
             request_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
         document_link = self._get_document_link(item)
+        request_context = {"partitionKey": request_options["partitionKey"]}
         self.client_connection.DeleteItem(document_link=document_link, options=request_options, **kwargs)
+        self._add_request_context(request_context)
 
     @distributed_trace
     def read_offer(self, **kwargs: Any) -> Offer:
@@ -1162,3 +1330,72 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
 
         self.client_connection.DeleteAllItemsByPartitionKey(
             collection_link=self.container_link, options=request_options, **kwargs)
+
+    def read_feed_ranges(
+            self,
+            *,
+            force_refresh: Optional[bool] = False,
+            **kwargs: Any) -> List[str]:
+
+        """ Obtains a list of feed ranges that can be used to parallelize feed operations.
+
+        :keyword bool force_refresh:
+            Flag to indicate whether obtain the list of feed ranges directly from cache or refresh the cache.
+        :returns: A list representing the feed ranges in base64 encoded string
+        :rtype: List[str]
+
+        """
+        if force_refresh is True:
+            self.client_connection.refresh_routing_map_provider()
+
+        partition_key_ranges =\
+            self.client_connection._routing_map_provider.get_overlapping_ranges(
+                self.container_link,
+                [Range("", "FF", True, False)], # default to full range
+                **kwargs)
+
+        return [partition_key_range_to_range_string(partitionKeyRange) for partitionKeyRange in partition_key_ranges]
+
+    def get_updated_session_token(self,
+                             feed_ranges_to_session_tokens: List,
+                             target_feed_range: FeedRange
+                             ) -> "Session Token":
+        """Gets the best session token from the list of session token and feed range tuples
+        to figure out which is the most up to date for a specific
+        feed range. The feed range can be obtained from a response from any crud operation.
+        This should only be used if maintaining own session token or else the sdk will keep track of
+        session token.
+        :param feed_ranges_to_session_tokens: List of partition key and session token tuples.
+        :type feed_ranges_to_session_tokens: List[Tuple(str, Range)]
+        :param target_feed_range: feed range to get most up to date session token.
+        :type target_feed_range: Range
+        :returns: a session token
+        :rtype: str
+        """
+        return self.client_connection._get_updated_session_token(feed_ranges_to_session_tokens, target_feed_range)
+
+    def feed_range_from_partition_key(self, partition_key: PartitionKeyType) -> FeedRange:
+        """Gets the feed range for a given partition key.
+        :param partition_key: partition key to get feed range.
+        :type partition_key: PartitionKey
+        :returns: a feed range
+        :rtype: Range
+        """
+        return FeedRangeEpk(self._get_epk_range_for_partition_key(partition_key))
+
+    def is_feed_range_subset(self, parent_feed_range: FeedRange, child_feed_range: FeedRange) -> bool:
+        """Checks if child feed range is a subset of parent feed range.
+        :param parent_feed_range: left feed range
+        :type parent_feed_range: Range
+        :param child_feed_range: right feed range
+        :type child_feed_range: Range
+        :returns: a boolean indicating if child feed range is a subset of parent feed range
+        :rtype: bool
+        """
+        return child_feed_range.get_normalized_range().is_subset(parent_feed_range.get_normalized_range())
+
+    def _add_request_context(self, request_context):
+        request_context['session_token'] = self.client_connection.last_response_headers['x-ms-session-token']
+        if 'partitionKey' in request_context:
+            request_context["feed_range"] =  self._get_epk_range_for_partition_key(request_context['partitionKey'])
+        self.client_connection.last_response_headers["request_context"] = request_context

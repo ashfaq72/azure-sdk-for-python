@@ -27,13 +27,15 @@ import os
 import urllib.parse
 from typing import Callable, Dict, Any, Iterable, List, Mapping, Optional, Sequence, Tuple, Union, cast, Type
 from typing_extensions import TypedDict
-
 from urllib3.util.retry import Retry
+
+from azure.core import PipelineClient
+
+from ._change_feed.feed_range import FeedRange
+from ._session_token_helpers import is_compound_session_token, merge_session_tokens
+from ._vector_session_token import VectorSessionToken
 from azure.core.credentials import TokenCredential
 from azure.core.paging import ItemPaged
-from azure.core import PipelineClient
-from azure.core.pipeline.transport import HttpRequest, \
-    HttpResponse  # pylint: disable=no-legacy-azure-core-http-response-import
 from azure.core.pipeline.policies import (
     HTTPPolicy,
     ContentDecodePolicy,
@@ -44,22 +46,30 @@ from azure.core.pipeline.policies import (
     DistributedTracingPolicy,
     ProxyPolicy
 )
+from azure.core.pipeline.transport import HttpRequest, \
+    HttpResponse  # pylint: disable=no-legacy-azure-core-http-response-import
 
 from . import _base as base
-from ._base import _set_properties_cache
-from . import documents
-from .documents import ConnectionPolicy, DatabaseAccount
-from ._constants import _Constants as Constants
-from . import http_constants, exceptions
+from . import _global_endpoint_manager as global_endpoint_manager
 from . import _query_iterable as query_iterable
 from . import _runtime_constants as runtime_constants
-from ._request_object import RequestObject
-from . import _synchronized_request as synchronized_request
-from . import _global_endpoint_manager as global_endpoint_manager
-from ._routing import routing_map_provider, routing_range
-from ._retry_utility import ConnectionRetryPolicy
 from . import _session
+from . import _synchronized_request as synchronized_request
 from . import _utils
+from . import documents
+from . import http_constants, exceptions
+from ._auth_policy import CosmosBearerTokenCredentialPolicy
+from ._base import _set_properties_cache
+from ._change_feed.change_feed_iterable import ChangeFeedIterable
+from ._change_feed.change_feed_state import ChangeFeedState
+from ._constants import _Constants as Constants
+from ._cosmos_http_logging_policy import CosmosHttpLoggingPolicy
+from ._range_partition_resolver import RangePartitionResolver
+from ._request_object import RequestObject
+from ._retry_utility import ConnectionRetryPolicy
+from ._routing import routing_map_provider, routing_range
+from .documents import ConnectionPolicy, DatabaseAccount
+from azure.cosmos._routing.routing_range import Range
 from .partition_key import (
     _Undefined,
     _Empty,
@@ -67,9 +77,6 @@ from .partition_key import (
     _return_undefined_or_empty_partition_key,
     NonePartitionKeyValue
 )
-from ._auth_policy import CosmosBearerTokenCredentialPolicy
-from ._cosmos_http_logging_policy import CosmosHttpLoggingPolicy
-from ._range_partition_resolver import RangePartitionResolver
 
 PartitionKeyType = Union[str, int, float, bool, Sequence[Union[str, int, float, bool, None]], Type[NonePartitionKeyValue]]  # pylint: disable=line-too-long
 
@@ -1191,11 +1198,10 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
 
         return ItemPaged(
             self,
-            None,
             options,
             fetch_function=fetch_fn,
             collection_link=collection_link,
-            page_iterator_class=query_iterable.QueryIterable
+            page_iterator_class=ChangeFeedIterable
         )
 
     def _ReadPartitionKeyRanges(
@@ -1257,6 +1263,7 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         self,
         database_or_container_link: str,
         document: Dict[str, Any],
+        request_context: Dict[str, Any],
         options: Optional[Mapping[str, Any]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -1287,7 +1294,9 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
 
         if base.IsItemContainerLink(database_or_container_link):
             options = self._AddPartitionKey(database_or_container_link, document, options)
-        return self.Create(document, path, "docs", collection_id, None, options, **kwargs)
+        request_context["partitionKey"] = options["partitionKey"]
+        result = self.Create(document, path, "docs", collection_id, None, options, **kwargs)
+        return result
 
     def UpsertItem(
         self,
@@ -1969,6 +1978,7 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         self,
         document_link: str,
         new_document: Dict[str, Any],
+        request_context: Dict[str, Any],
         options: Optional[Mapping[str, Any]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -3023,6 +3033,11 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
                 options,
                 partition_key_range_id
             )
+
+            change_feed_state: Optional[ChangeFeedState] = options.get("changeFeedState")
+            if change_feed_state is not None:
+                change_feed_state.populate_request_headers(self._routing_map_provider, headers)
+
             result, last_response_headers = self.__Get(path, request_params, headers, **kwargs)
             self.last_response_headers = last_response_headers
             if response_hook:
@@ -3320,3 +3335,123 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
             partition_key_definition = container.get("partitionKey")
             self.__container_properties_cache[collection_link] = _set_properties_cache(container)
         return partition_key_definition
+
+    def _get_updated_session_token(self, feed_ranges_to_session_tokens, target_feed_range):
+        target_feed_range_normalized = target_feed_range.get_normalized_range()
+        # filter out tuples that overlap with target_feed_range and normalizes all the ranges
+        overlapping_ranges = [(feed_range[0].get_normalized_range(), feed_range[1]) for feed_range in feed_ranges_to_session_tokens if
+                              Range.overlaps(target_feed_range_normalized, feed_range[0].get_normalized_range())]
+        # Is there a feed_range that is a superset of some of the other feed_ranges excluding tuples
+        # with compound session tokens?
+        if overlapping_ranges == 0:
+            raise ValueError('There were no overlapping feed ranges with the target.')
+
+        i = 0
+        j = 1
+        while i < len(overlapping_ranges) and j < len(overlapping_ranges):
+            cur_feed_range = overlapping_ranges[i][0]
+            session_token = overlapping_ranges[i][1]
+            session_token_1 = overlapping_ranges[j][1]
+            if (not is_compound_session_token(session_token) and
+                    not is_compound_session_token(overlapping_ranges[j][1]) and
+                    cur_feed_range == overlapping_ranges[j][0]):
+                session_token = merge_session_tokens(session_token, session_token_1)
+                feed_ranges_to_remove = [overlapping_ranges[i], overlapping_ranges[j]]
+                for feed_range_to_remove in feed_ranges_to_remove:
+                    overlapping_ranges.remove(feed_range_to_remove)
+                overlapping_ranges.append((cur_feed_range, session_token))
+            else:
+                j += 1
+                if j == len(overlapping_ranges):
+                    i += 1
+                    j = i + 1
+
+
+        updated_session_token = ""
+        remaining_session_tokens = []
+        done_overlapping_ranges = []
+        while len(overlapping_ranges) != 0:
+            feed_range_cmp, session_token_cmp = overlapping_ranges[0]
+            if is_compound_session_token(session_token_cmp):
+                done_overlapping_ranges.append(overlapping_ranges[0])
+                overlapping_ranges.remove(overlapping_ranges[0])
+                continue
+            tokens_cmp = session_token_cmp.split(":")
+            vector_session_token_cmp = VectorSessionToken.create(tokens_cmp[1])
+            subsets = []
+            # creating subsets of feed ranges that are subsets of the current feed range
+            for j in range(1, len(overlapping_ranges)):
+                feed_range = overlapping_ranges[j][0]
+                if not is_compound_session_token(overlapping_ranges[j][1]) and \
+                        feed_range.is_subset(feed_range_cmp):
+                    subsets.append(overlapping_ranges[j] + (j,))
+
+            # go through subsets to see if can create current feed range from the subsets
+            not_found = True
+            j = 0
+            while not_found and j < len(subsets):
+                merged_range = subsets[j][0]
+                session_tokens = [subsets[j][1]]
+                merged_indices = [subsets[j][2]]
+                for k in range(len(subsets)):
+                    if j == k:
+                        continue
+                    if merged_range.can_merge(subsets[k][0]):
+                        merged_range = merged_range.merge(subsets[k][0])
+                        session_tokens.append(subsets[k][1])
+                        merged_indices.append(subsets[k][2])
+                    if feed_range_cmp == merged_range:
+                        all_global_lsns_larger = True
+                        for session_token in session_tokens:
+                            tokens = session_token.split(":")
+                            vector_session_token = VectorSessionToken.create(tokens[1])
+                            if vector_session_token.global_lsn <  vector_session_token_cmp.global_lsn:
+                                all_global_lsns_larger = False
+                                break
+                        feed_ranges_to_remove = [overlapping_ranges[i] for i in merged_indices]
+                        for feed_range_to_remove in feed_ranges_to_remove:
+                            overlapping_ranges.remove(feed_range_to_remove)
+                        if all_global_lsns_larger:
+                            overlapping_ranges.append((merged_range, ','.join(map(str, session_tokens))))
+                            overlapping_ranges.remove(overlapping_ranges[0])
+                        not_found = False
+                        break
+                j += 1
+
+            done_overlapping_ranges.append(overlapping_ranges[0])
+            overlapping_ranges.remove(overlapping_ranges[0])
+
+        for _, session_token in done_overlapping_ranges:
+            # here break up session tokens that are compound
+            if is_compound_session_token(session_token):
+                tokens = session_token.split(",")
+                for token in tokens:
+                    remaining_session_tokens.append(token)
+            else:
+                remaining_session_tokens.append(session_token)
+
+        if len(remaining_session_tokens) == 1:
+            return remaining_session_tokens[0]
+        new_session_tokens = []
+        # merging any session tokens with same pkrangeid
+        for i in range(len(remaining_session_tokens)):
+            for j in range(i + 1, len(remaining_session_tokens)):
+                tokens1 = remaining_session_tokens[i].split(":")
+                tokens2 = remaining_session_tokens[j].split(":")
+                pk_range_id1 = tokens1[0]
+                pk_range_id2 = tokens2[0]
+                if pk_range_id1 == pk_range_id2:
+                    vector_session_token1 = VectorSessionToken.create(tokens1[1])
+                    vector_session_token2 = VectorSessionToken.create(tokens2[1])
+                    vector_session_token = vector_session_token1.merge(vector_session_token2)
+                    new_session_tokens.append(pk_range_id1 + ":" + vector_session_token.session_token)
+                    remaining_session_tokens.remove(remaining_session_tokens[i])
+                    remaining_session_tokens.remove(remaining_session_tokens[j])
+        new_session_tokens.extend(remaining_session_tokens)
+        for i in range(len(new_session_tokens)):
+            if i == len(new_session_tokens) - 1:
+                updated_session_token += new_session_tokens[i]
+            else:
+                updated_session_token += new_session_tokens[i] + ","
+
+        return updated_session_token
