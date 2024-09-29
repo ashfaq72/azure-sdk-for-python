@@ -15,6 +15,7 @@ import pandas as pd
 from azure.ai.evaluation._constants import DEFAULT_EVALUATION_RESULTS_FILE_NAME, DefaultOpenEncoding, Prefixes
 from azure.ai.evaluation._evaluate._eval_run import EvalRun
 from azure.ai.evaluation._exceptions import ErrorBlame, ErrorCategory, ErrorTarget, EvaluationException
+from azure.ai.evaluation._model_configurations import AzureAIProject
 
 LOGGER = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ def _get_ai_studio_url(trace_destination: str, evaluation_id: str) -> str:
     return studio_url
 
 
-def _trace_destination_from_project_scope(project_scope: dict) -> str:
+def _trace_destination_from_project_scope(project_scope: AzureAIProject) -> str:
     subscription_id = project_scope["subscription_id"]
     resource_group_name = project_scope["resource_group_name"]
     workspace_name = project_scope["project_name"]
