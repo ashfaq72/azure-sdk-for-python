@@ -10,6 +10,7 @@ from promptflow.tracing import ThreadPoolExecutorWithContext as ThreadPoolExecut
 
 from azure.ai.evaluation._common.math import list_mean_nan_safe
 from azure.ai.evaluation._exceptions import ErrorBlame, ErrorCategory, ErrorTarget, EvaluationException
+from azure.ai.evaluation._model_configurations import AzureAIProject
 
 from ._hate_unfairness import HateUnfairnessEvaluator
 from ._self_harm import SelfHarmEvaluator
@@ -82,7 +83,9 @@ class ContentSafetyChatEvaluator:
         }
     """
 
-    def __init__(self, azure_ai_project: dict, eval_last_turn: bool = False, parallel: bool = True, credential=None):
+    def __init__(
+        self, azure_ai_project: AzureAIProject, eval_last_turn: bool = False, parallel: bool = True, credential=None
+    ):
         self._eval_last_turn = eval_last_turn
         self._parallel = parallel
         self._evaluators = [

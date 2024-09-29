@@ -9,6 +9,7 @@ from typing_extensions import override
 from azure.ai.evaluation._common.constants import EvaluationMetrics
 from azure.ai.evaluation._common.rai_service import evaluate_with_rai_service
 from azure.ai.evaluation._exceptions import EvaluationException
+from azure.ai.evaluation._model_configurations import AzureAIProject
 from azure.identity import DefaultAzureCredential
 
 from . import EvaluatorBase
@@ -33,7 +34,7 @@ class RaiServiceEvaluatorBase(EvaluatorBase):
     def __init__(
         self,
         eval_metric: EvaluationMetrics,
-        azure_ai_project: dict,
+        azure_ai_project: AzureAIProject,
         credential: Optional[dict] = None,
         eval_last_turn: bool = False,
     ):
@@ -53,7 +54,7 @@ class RaiServiceEvaluatorBase(EvaluatorBase):
         query: Optional[str] = None,
         response: Optional[str] = None,
         conversation: Optional[dict] = None,
-        **kwargs
+        **kwargs,
     ):
         """Evaluate either a query and response or a conversation. Must supply either a query AND response,
         or a conversation, but not both.
