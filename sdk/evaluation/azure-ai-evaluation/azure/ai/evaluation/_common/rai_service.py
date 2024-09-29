@@ -413,7 +413,7 @@ async def fetch_or_reuse_token(credential: TokenCredential, token: Optional[str]
 
 
 async def evaluate_with_rai_service(
-    query: str, response: str, metric_name: str, project_scope: AzureAIProject, credential: TokenCredential
+    query: str, response: str, metric_name: str, project_scope: AzureAIProject, credential: Optional[TokenCredential]
 ):
     """ "Evaluate the content safety of the response using Responsible AI service
 

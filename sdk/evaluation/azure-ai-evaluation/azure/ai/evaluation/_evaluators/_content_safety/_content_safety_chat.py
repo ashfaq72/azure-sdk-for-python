@@ -4,13 +4,14 @@
 import logging
 import math
 from concurrent.futures import as_completed
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from promptflow.tracing import ThreadPoolExecutorWithContext as ThreadPoolExecutor
 
 from azure.ai.evaluation._common.math import list_mean_nan_safe
 from azure.ai.evaluation._exceptions import ErrorBlame, ErrorCategory, ErrorTarget, EvaluationException
 from azure.ai.evaluation._model_configurations import AzureAIProject
+from azure.core.credentials import TokenCredential
 
 from ._hate_unfairness import HateUnfairnessEvaluator
 from ._self_harm import SelfHarmEvaluator
@@ -84,7 +85,11 @@ class ContentSafetyChatEvaluator:
     """
 
     def __init__(
-        self, azure_ai_project: AzureAIProject, eval_last_turn: bool = False, parallel: bool = True, credential=None
+        self,
+        azure_ai_project: AzureAIProject,
+        eval_last_turn: bool = False,
+        parallel: bool = True,
+        credential: Optional[TokenCredential] = None,
     ):
         self._eval_last_turn = eval_last_turn
         self._parallel = parallel

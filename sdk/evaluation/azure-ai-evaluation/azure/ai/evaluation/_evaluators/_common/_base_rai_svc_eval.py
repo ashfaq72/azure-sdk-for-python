@@ -10,6 +10,7 @@ from azure.ai.evaluation._common.constants import EvaluationMetrics
 from azure.ai.evaluation._common.rai_service import evaluate_with_rai_service
 from azure.ai.evaluation._exceptions import EvaluationException
 from azure.ai.evaluation._model_configurations import AzureAIProject
+from azure.core.credentials import TokenCredential
 from azure.identity import DefaultAzureCredential
 
 from . import EvaluatorBase
@@ -35,17 +36,13 @@ class RaiServiceEvaluatorBase(EvaluatorBase):
         self,
         eval_metric: EvaluationMetrics,
         azure_ai_project: AzureAIProject,
-        credential: Optional[dict] = None,
+        credential: Optional[TokenCredential] = None,
         eval_last_turn: bool = False,
     ):
         super().__init__(eval_last_turn=eval_last_turn)
         self._eval_metric = eval_metric
         self._azure_ai_project = azure_ai_project
-        if credential is None:
-            # Use DefaultCredential if no credential is provided
-            self._credential = DefaultAzureCredential()
-        else:
-            self._credential = credential
+        self._credential = credential or DefaultAzureCredential()
 
     @override
     def __call__(
