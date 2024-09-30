@@ -7,7 +7,7 @@ import math
 import re
 import time
 from ast import literal_eval
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional, Union, cast
 from urllib.parse import urlparse
 
 import jwt
@@ -210,7 +210,7 @@ async def fetch_result(operation_id: str, rai_svc_url: str, credential: TokenCre
 
 def parse_response(  # pylint: disable=too-many-branches,too-many-statements
     batch_response: List[Dict], metric_name: str
-) -> Dict:
+) -> Dict[str, Union[str, float]]:
     """Parse the annotation response from Responsible AI service for a content harm evaluation.
 
     :param batch_response: The annotation response from Responsible AI service.
@@ -218,7 +218,7 @@ def parse_response(  # pylint: disable=too-many-branches,too-many-statements
     :param metric_name: The evaluation metric to use.
     :type metric_name: str
     :return: The parsed annotation result.
-    :rtype: List[List[Dict]]
+    :rtype: Dict[str, Union[str, float]]
     """
     # non-numeric metrics
     if metric_name in {EvaluationMetrics.PROTECTED_MATERIAL, _InternalEvaluationMetrics.ECI, EvaluationMetrics.XPIA}:
@@ -250,7 +250,7 @@ def parse_response(  # pylint: disable=too-many-branches,too-many-statements
     return _parse_content_harm_response(batch_response, metric_name)
 
 
-def _parse_content_harm_response(batch_response: List[Dict], metric_name: str) -> Dict:
+def _parse_content_harm_response(batch_response: List[Dict], metric_name: str) -> Dict[str, Union[str, float]]:
     """Parse the annotation response from Responsible AI service for a content harm evaluation.
 
     :param batch_response: The annotation response from Responsible AI service.
@@ -258,7 +258,7 @@ def _parse_content_harm_response(batch_response: List[Dict], metric_name: str) -
     :param metric_name: The evaluation metric to use.
     :type metric_name: str
     :return: The parsed annotation result.
-    :rtype: List[List[Dict]]
+    :rtype: Dict[str, Union[str, float]]
     """
     # Fix the metric name if it's "hate_fairness"
     # Eventually we will remove this fix once the RAI service is updated
@@ -266,7 +266,7 @@ def _parse_content_harm_response(batch_response: List[Dict], metric_name: str) -
     if key == EvaluationMetrics.HATE_FAIRNESS:
         key = EvaluationMetrics.HATE_UNFAIRNESS
 
-    result = {key: math.nan, key + "_score": math.nan, key + "_reason": ""}
+    result: Dict[str, Union[str, float]] = {key: math.nan, key + "_score": math.nan, key + "_reason": ""}
 
     response = batch_response[0]
     if metric_name not in response:
@@ -414,7 +414,7 @@ async def fetch_or_reuse_token(credential: TokenCredential, token: Optional[str]
 
 async def evaluate_with_rai_service(
     query: str, response: str, metric_name: str, project_scope: AzureAIProject, credential: Optional[TokenCredential]
-):
+) -> Dict[str, Union[str, float]]:
     """ "Evaluate the content safety of the response using Responsible AI service
 
        :param query: The query to evaluate.
@@ -429,7 +429,7 @@ async def evaluate_with_rai_service(
        :type credential:
     ~azure.core.credentials.TokenCredential
        :return: The parsed annotation result.
-       :rtype: List[List[Dict]]
+       :rtype: Dict[str, Union[str, float]]
     """
     # Use DefaultAzureCredential if no credential is provided
     # This is for the for batch run scenario as the credential cannot be serialized by promoptflow
