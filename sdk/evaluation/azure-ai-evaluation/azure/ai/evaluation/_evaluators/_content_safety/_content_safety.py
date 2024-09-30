@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
 from concurrent.futures import as_completed
-from typing import Optional
+from typing import Callable, Dict, List, Optional, Union
 
 from promptflow.tracing import ThreadPoolExecutorWithContext as ThreadPoolExecutor
 
@@ -68,14 +68,14 @@ class ContentSafetyEvaluator:
         self, azure_ai_project: AzureAIProject, parallel: bool = True, credential: Optional[TokenCredential] = None
     ):
         self._parallel = parallel
-        self._evaluators = [
+        self._evaluators: List[Callable[..., Dict[str, Union[str, float]]]] = [
             ViolenceEvaluator(azure_ai_project, credential),
             SexualEvaluator(azure_ai_project, credential),
             SelfHarmEvaluator(azure_ai_project, credential),
             HateUnfairnessEvaluator(azure_ai_project, credential),
         ]
 
-    def __call__(self, *, query: str, response: str, **kwargs):
+    def __call__(self, *, query: str, response: str, **kwargs) -> Dict[str, Union[str, float]]:
         """
         Evaluates content-safety metrics for "question-answering" scenario.
 
@@ -88,7 +88,7 @@ class ContentSafetyEvaluator:
         :return: The scores for content-safety.
         :rtype: dict
         """
-        results = {}
+        results: Dict[str, Union[str, float]] = {}
         if self._parallel:
             with ThreadPoolExecutor() as executor:
                 futures = {
