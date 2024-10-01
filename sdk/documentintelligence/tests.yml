@@ -15,7 +15,7 @@ extends:
       # As such, the canary test runs should run on a reduced matrix.
       CloudConfig:
         Prod:
-          ServiceConnection: azure-sdk-tests-preview-override
+          ServiceConnection: azure-sdk-tests-preview-overrride
           Location: eastus
       EnvVars:
         AZURE_SUBSCRIPTION_ID: $(provisioner-subscription)
