@@ -315,7 +315,7 @@ try {
         if ($context.Account.Type -eq 'User') {
             $user = Get-AzADUser -UserPrincipalName $context.Account.Id
             $ProvisionerApplicationOid = $user.Id
-        } elseif ($context.Account.Type -eq 'ServicePrincipal') {
+        } elseif ($context.Account.Type -eq 'ServicePrincipal' -or $context.Account.Type -eq 'ClientAssertion') {
             $sp = Get-AzADServicePrincipal -ApplicationId $context.Account.Id
             $ProvisionerApplicationOid = $sp.Id
         } else {
