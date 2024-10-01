@@ -67,7 +67,7 @@ steps:
 
           $principal = Get-AzADServicePrincipal -ApplicationId $context.Account.Id
           $subscriptionConfiguration["TestApplicationOid"] = $principal.Id
-          $subscriptionConfiguration["ProvisionerApplicationOid"]: $principal.Id
+          $subscriptionConfiguration["ProvisionerApplicationOid"] = $principal.Id
 
           Write-Host "SubscriptionId: $($context.Subscription.Id)"
           Write-Host "TenantId: $($context.Subscription.TenantId)"
