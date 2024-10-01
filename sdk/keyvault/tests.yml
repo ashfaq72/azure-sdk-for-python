@@ -17,19 +17,10 @@ extends:
       UseFederatedAuth: true
       CloudConfig:
         Public:
-          ServiceConnection: azure-sdk-tests
-          SubscriptionConfigurationFilePaths:
-            - eng/common/TestResources/sub-config/AzurePublicMsft.json
         UsGov:
-          ServiceConnection: usgov_azure-sdk-tests
-          SubscriptionConfigurationFilePaths:
-            - eng/common/TestResources/sub-config/AzureUsGovMsft.json
           MatrixFilters:
             - ArmTemplateParameters=^(?!.*enableHsm.*true)
         China:
-          ServiceConnection: china_azure-sdk-tests
-          SubscriptionConfigurationFilePaths:
-            - eng/common/TestResources/sub-config/AzureChinaMsft.json
           MatrixFilters:
             - ArmTemplateParameters=^(?!.*enableHsm.*true)
           Location: chinaeast2
