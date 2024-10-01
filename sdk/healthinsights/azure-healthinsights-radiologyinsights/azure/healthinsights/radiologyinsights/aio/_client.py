@@ -20,13 +20,10 @@ from ._configuration import RadiologyInsightsClientConfiguration
 from ._operations import RadiologyInsightsClientOperationsMixin
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import,ungrouped-imports
     from azure.core.credentials_async import AsyncTokenCredential
 
 
-class RadiologyInsightsClient(
-    RadiologyInsightsClientOperationsMixin
-):  # pylint: disable=client-accepts-api-version-keyword
+class RadiologyInsightsClient(RadiologyInsightsClientOperationsMixin):
     """RadiologyInsightsClient.
 
     :param endpoint: Supported Cognitive Services endpoints (protocol and hostname, for example:
