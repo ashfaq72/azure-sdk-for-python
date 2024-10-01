@@ -61,7 +61,10 @@ parameters:
       Canary:
         Location: 'centraluseuap'
       UsGov:
+        ServiceConnection: usgov_azure-sdk-tests
       China:
+        ServiceConnection: china_azure-sdk-tests
+        Location: 'chinanorth3'
   - name: MatrixConfigs
     type: object
     default:

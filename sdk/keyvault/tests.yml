@@ -14,13 +14,14 @@ extends:
       Packages: ${{ parameters.Services }}
       SupportedClouds: 'Public,UsGov,China'
       TestTimeoutInMinutes: 240
-      UseFederatedAuth: true
       CloudConfig:
         Public:
         UsGov:
+          ServiceConnection: usgov_azure-sdk-tests
           MatrixFilters:
             - ArmTemplateParameters=^(?!.*enableHsm.*true)
         China:
+          ServiceConnection: china_azure-sdk-tests 
           MatrixFilters:
             - ArmTemplateParameters=^(?!.*enableHsm.*true)
           Location: chinaeast2
