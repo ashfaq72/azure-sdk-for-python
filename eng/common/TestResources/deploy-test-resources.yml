@@ -59,6 +59,18 @@ steps:
             ${{ parameters.SubscriptionConfiguration }}
           '@ | ConvertFrom-Json -AsHashtable;
 
+          $account = (Get-AzContext).Account          
+          # "SubscriptionId": "2cd617ea-1866-46b1-90e3-fffb087ebf9b",
+          # "TenantId": "72f988bf-86f1-41af-91ab-2d7cd011db47",
+          $subscriptionConfiguration["TestApplicationId"] = $account.Id
+          # "TestApplicationSecret": "",
+          # "TestApplicationOid": "30511c9d-ba1a-4c7b-b422-5b543da11b3f",
+          $subscriptionConfiguration["ProvisionerApplicationId"] = $account.Id
+          # "ProvisionerApplicationSecret": "",
+          # "ProvisionerApplicationOid": "30511c9d-ba1a-4c7b-b422-5b543da11b3f",
+          # "Environment": "AzureCloud",
+          # "AzureSubscription": "Azure SDK Test Resources",
+
           # The subscriptionConfiguration may have ArmTemplateParameters defined, so
           # pass those in via the ArmTemplateParameters flag, and handle any
           # additional parameters from the pipelines via AdditionalParameters
