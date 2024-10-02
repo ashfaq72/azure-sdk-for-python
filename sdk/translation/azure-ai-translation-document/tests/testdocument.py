@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # ------------------------------------
 
+
 class TestDocument:
     def __init__(self, name, content):
         self._name = name

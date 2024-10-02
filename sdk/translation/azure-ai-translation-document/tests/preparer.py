@@ -10,7 +10,7 @@ DocumentTranslationPreparer = functools.partial(
     EnvironmentVariableLoader,
     "translation",
     document_translation_endpoint="https://fakeendpoint.cognitiveservices.azure.com",
-    document_translation_storage_name="redacted",    
+    document_translation_storage_name="redacted",
 )
 
 SingleDocumentTranslationPreparer = functools.partial(

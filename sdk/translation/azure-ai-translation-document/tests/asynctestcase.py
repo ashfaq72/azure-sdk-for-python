@@ -2,15 +2,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 # ------------------------------------
-
-import os
 from devtools_testutils import AzureRecordedTestCase
-from azure.ai.translation.document import DocumentTranslationClient, SingleDocumentTranslationClient
+from azure.ai.translation.document.aio import DocumentTranslationClient, SingleDocumentTranslationClient
 
 
-class DocumentTranslationTest(AzureRecordedTestCase):
-    def create_client(self, endpoint):
-        credential = self.get_credential(DocumentTranslationClient)
+class DocumentTranslationTestAsync(AzureRecordedTestCase):
+    def create_async_client(self, endpoint):
+        credential = self.get_credential(DocumentTranslationClient, is_async=True)
         return self.create_client_from_credential(
             DocumentTranslationClient,
             credential=credential,
@@ -18,9 +16,10 @@ class DocumentTranslationTest(AzureRecordedTestCase):
         )
 
 
-class SingleDocumentTranslationTest(AzureRecordedTestCase):
-    def create_client(self, endpoint):
-        credential = self.get_credential(SingleDocumentTranslationClient)
+class SingleDocumentTranslationTestAsync(AzureRecordedTestCase):
+
+    def create_async_client(self, endpoint):
+        credential = self.get_credential(SingleDocumentTranslationClient, is_async=True)
         return self.create_client_from_credential(
             SingleDocumentTranslationClient,
             credential=credential,

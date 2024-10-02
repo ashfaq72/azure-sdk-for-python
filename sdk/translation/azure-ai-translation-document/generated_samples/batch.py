@@ -60,5 +60,6 @@ def main():
     ).result()
 
 
+# x-ms-original-file: 2024-05-01/batch.json
 if __name__ == "__main__":
     main()

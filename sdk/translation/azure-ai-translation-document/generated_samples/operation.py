@@ -28,5 +28,6 @@ def main():
     print(response)
 
 
+# x-ms-original-file: 2024-05-01/operation.json
 if __name__ == "__main__":
     main()

@@ -320,7 +320,7 @@ class DocumentTranslationClientOperationsMixin(DocumentTranslationClientMixinABC
     def _start_translation_initial(
         self, body: Union[_models.StartTranslationDetails, JSON, IO[bytes]], **kwargs: Any
     ) -> Iterator[bytes]:
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -675,7 +675,7 @@ class DocumentTranslationClientOperationsMixin(DocumentTranslationClientMixinABC
         maxpagesize = kwargs.pop("maxpagesize", None)
         cls: ClsType[List[_models.TranslationStatus]] = kwargs.pop("cls", None)
 
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -767,7 +767,7 @@ class DocumentTranslationClientOperationsMixin(DocumentTranslationClientMixinABC
         :rtype: ~azure.ai.translation.document.models.DocumentStatus
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -833,7 +833,7 @@ class DocumentTranslationClientOperationsMixin(DocumentTranslationClientMixinABC
         :rtype: ~azure.ai.translation.document.models.TranslationStatus
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -902,7 +902,7 @@ class DocumentTranslationClientOperationsMixin(DocumentTranslationClientMixinABC
         :rtype: ~azure.ai.translation.document.models.TranslationStatus
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1065,7 +1065,7 @@ class DocumentTranslationClientOperationsMixin(DocumentTranslationClientMixinABC
         maxpagesize = kwargs.pop("maxpagesize", None)
         cls: ClsType[List[_models.DocumentStatus]] = kwargs.pop("cls", None)
 
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1161,7 +1161,7 @@ class DocumentTranslationClientOperationsMixin(DocumentTranslationClientMixinABC
         :rtype: ~azure.ai.translation.document.models.SupportedFileFormats
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,
@@ -1348,7 +1348,7 @@ class SingleDocumentTranslationClientOperationsMixin(  # pylint: disable=name-to
         :rtype: Iterator[bytes]
         :raises ~azure.core.exceptions.HttpResponseError:
         """
-        error_map: MutableMapping[int, Type[HttpResponseError]] = {
+        error_map: MutableMapping[int, Type[HttpResponseError]] = {  # pylint: disable=unsubscriptable-object
             401: ClientAuthenticationError,
             404: ResourceNotFoundError,
             409: ResourceExistsError,

@@ -1,8 +1,12 @@
-
+# ------------------------------------
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+# ------------------------------------
 from devtools_testutils import recorded_by_proxy
 from preparer import DocumentTranslationPreparer
 from azure.ai.translation.document.models import FileFormatType
 from tests.testcase import DocumentTranslationTest
+
 
 class TestSupportedFormats(DocumentTranslationTest):
     @DocumentTranslationPreparer()
