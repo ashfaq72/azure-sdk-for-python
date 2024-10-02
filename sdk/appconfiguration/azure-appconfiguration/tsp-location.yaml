@@ -1,0 +1,4 @@
+directory: specification/appconfiguration/AppConfiguration
+commit: d8b8249edb965c046473917193189d3e5d13ede1
+repo: azure/azure-rest-api-specs
+additionalDirectories: 
