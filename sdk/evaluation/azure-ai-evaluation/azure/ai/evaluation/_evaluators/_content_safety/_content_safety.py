@@ -2,12 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
 from concurrent.futures import as_completed
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Union
 
 from promptflow.tracing import ThreadPoolExecutorWithContext as ThreadPoolExecutor
 
 from azure.ai.evaluation._model_configurations import AzureAIProject
-from azure.core.credentials import TokenCredential
 
 from ._hate_unfairness import HateUnfairnessEvaluator
 from ._self_harm import SelfHarmEvaluator
@@ -64,9 +63,7 @@ class ContentSafetyEvaluator:
         }
     """
 
-    def __init__(
-        self, azure_ai_project: AzureAIProject, parallel: bool = True, credential: Optional[TokenCredential] = None
-    ):
+    def __init__(self, azure_ai_project: AzureAIProject, parallel: bool = True, credential=None):
         self._parallel = parallel
         self._evaluators: List[Callable[..., Dict[str, Union[str, float]]]] = [
             ViolenceEvaluator(azure_ai_project, credential),

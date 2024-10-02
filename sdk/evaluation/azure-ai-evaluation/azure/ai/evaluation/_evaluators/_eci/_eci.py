@@ -1,14 +1,12 @@
 # ---------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
-from typing import Optional
 
 from typing_extensions import override
 
 from azure.ai.evaluation._common.constants import _InternalEvaluationMetrics
 from azure.ai.evaluation._evaluators._common import RaiServiceEvaluatorBase
 from azure.ai.evaluation._model_configurations import AzureAIProject
-from azure.core.credentials import TokenCredential
 
 
 class ECIEvaluator(RaiServiceEvaluatorBase):
@@ -55,7 +53,7 @@ class ECIEvaluator(RaiServiceEvaluatorBase):
     def __init__(
         self,
         azure_ai_project: AzureAIProject,
-        credential: Optional[TokenCredential] = None,
+        credential=None,
         eval_last_turn: bool = False,
     ):
         super().__init__(

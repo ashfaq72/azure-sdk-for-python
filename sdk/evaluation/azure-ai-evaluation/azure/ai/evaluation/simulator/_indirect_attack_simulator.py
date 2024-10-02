@@ -4,7 +4,7 @@
 # noqa: E501
 import functools
 import logging
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 from promptflow._sdk._telemetry import ActivityType, monitor_operation
 
@@ -61,7 +61,7 @@ class IndirectAttackSimulator:
     :type credential: ~azure.core.credentials.TokenCredential
     """
 
-    def __init__(self, *, azure_ai_project: AzureAIProject, credential: Optional[TokenCredential] = None):
+    def __init__(self, *, azure_ai_project: AzureAIProject, credential=None):
         """Constructor."""
 
         try:
@@ -75,12 +75,12 @@ class IndirectAttackSimulator:
                 blame=e.blame,
             ) from e
 
-        self.credential = credential or DefaultAzureCredential()
+        self.credential = cast(Optional[TokenCredential], credential) or DefaultAzureCredential()
         self.azure_ai_project = azure_ai_project
         self.token_manager = ManagedIdentityAPITokenManager(
             token_scope=TokenScope.DEFAULT_AZURE_MANAGEMENT,
             logger=logging.getLogger("AdversarialSimulator"),
-            credential=credential,
+            credential=self.credential,
         )
         self.rai_client = RAIClient(azure_ai_project=azure_ai_project, token_manager=self.token_manager)
         self.adversarial_template_handler = AdversarialTemplateHandler(

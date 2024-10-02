@@ -47,7 +47,7 @@ class AdversarialSimulator:
     :type credential: ~azure.core.credentials.TokenCredential
     """
 
-    def __init__(self, *, azure_ai_project: AzureAIProject, credential: Optional[TokenCredential] = None):
+    def __init__(self, *, azure_ai_project: AzureAIProject, credential=None):
         """Constructor."""
 
         try:
@@ -61,7 +61,7 @@ class AdversarialSimulator:
                 blame=e.blame,
             ) from e
 
-        credential = credential or DefaultAzureCredential()
+        credential = cast(Optional[TokenCredential], credential) or DefaultAzureCredential()
         self.azure_ai_project = azure_ai_project
         self.token_manager = ManagedIdentityAPITokenManager(
             token_scope=TokenScope.DEFAULT_AZURE_MANAGEMENT,

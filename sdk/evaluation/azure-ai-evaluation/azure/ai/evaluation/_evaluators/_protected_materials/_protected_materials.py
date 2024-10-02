@@ -1,7 +1,7 @@
 # ---------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
-from typing import Optional
+from typing import Optional, cast
 
 from promptflow._utils.async_utils import async_run_allowing_running_loop
 
@@ -88,8 +88,10 @@ class ProtectedMaterialsEvaluator:
         }
     """
 
-    def __init__(self, azure_ai_project: AzureAIProject, credential: Optional[TokenCredential] = None):
-        self._async_evaluator = _AsyncProtectedMaterialsEvaluator(azure_ai_project, credential)
+    def __init__(self, azure_ai_project: AzureAIProject, credential=None):
+        self._async_evaluator = _AsyncProtectedMaterialsEvaluator(
+            azure_ai_project, cast(Optional[TokenCredential], credential)
+        )
 
     def __call__(self, *, query: str, response: str, **kwargs):
         """
