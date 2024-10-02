@@ -69,10 +69,9 @@ steps:
           $subscriptionConfiguration["TestApplicationOid"] = $principal.Id
           $subscriptionConfiguration["ProvisionerApplicationOid"] = $principal.Id
 
-          Write-Host "SubscriptionId: $($context.Subscription.Id)"
-          Write-Host "TenantId: $($context.Subscription.TenantId)"
-          Write-Host "AppId: $($context.Account.Id)"
-          Write-Host "OID: $($principal.Id)"
+          Write-Host ($subscriptionConfiguration | ConvertTo-Json)
+          # Write the new SubscriptionConfiguration to be used by the remove test resources
+          Write-Host "##vso[task.setvariable variable=SubscriptionConfiguration;]$($subscriptionConfiguration | ConvertTo-Json -Compress)"
 
           # The subscriptionConfiguration may have ArmTemplateParameters defined, so
           # pass those in via the ArmTemplateParameters flag, and handle any

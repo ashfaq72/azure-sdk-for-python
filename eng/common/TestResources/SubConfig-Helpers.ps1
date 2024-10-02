@@ -99,7 +99,6 @@ function ShouldMarkValueAsSecret([string]$serviceName, [string]$key, [string]$va
         return $false
     }
 
-    Write-Host "Marking '$key' as secret"
     return $true
 }
 
