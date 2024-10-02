@@ -75,7 +75,7 @@ class ContentSafetyEvaluator:
             HateUnfairnessEvaluator(azure_ai_project, credential),
         ]
 
-    def __call__(self, *, query: str, response: str, **kwargs) -> Dict[str, Union[str, float]]:
+    def __call__(self, *, query: str, response: str, **kwargs):
         """
         Evaluates content-safety metrics for "question-answering" scenario.
 
@@ -86,7 +86,7 @@ class ContentSafetyEvaluator:
         :keyword parallel: Whether to evaluate in parallel.
         :paramtype parallel: bool
         :return: The scores for content-safety.
-        :rtype: dict
+        :rtype: Dict[str, Union[str, float]]
         """
         results: Dict[str, Union[str, float]] = {}
         if self._parallel:
