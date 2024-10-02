@@ -233,18 +233,13 @@ class AMQPClient(
         self.close()
 
     def _keep_alive(self):
-        start_time = time.time()
-        try:
-            while self._connection and not self._shutdown:
-                current_time = time.time()
-                elapsed_time = current_time - start_time
-                if elapsed_time >= self._keep_alive_interval:
-                    self._connection.listen(wait=self._socket_timeout, batch=self._link.total_link_credit)
-                    start_time = current_time
-                time.sleep(1)
-        except Exception as e:  # pylint: disable=broad-except
-            _logger.debug("Connection keep-alive for %r failed: %r.", self.__class__.__name__, e)
-
+        while self._connection and not self._shutdown:
+            _logger.debug(f"Calling keep alive :{threading.current_thread().name}")
+            if self._link and self._link.total_link_credit > 0:
+                self.do_work(batch=self._link.total_link_credit)
+            else:
+                self.do_work()
+   
     def _client_ready(self):
         """Determine whether the client is ready to start sending and/or
         receiving messages. To be ready, the connection must be open and
@@ -337,10 +332,6 @@ class AMQPClient(
                 outgoing_window=self._outgoing_window,
             )
             self._session.begin()
-        if self._keep_alive_interval:
-            self._keep_alive_thread = threading.Thread(target=self._keep_alive)
-            self._keep_alive_thread.daemon = True
-            self._keep_alive_thread.start()
         if self._auth.auth_type == AUTH_TYPE_CBS:
             self._cbs_authenticator = CBSAuthenticator(
                 session=self._session, auth=self._auth, auth_timeout=self._auth_timeout
@@ -349,6 +340,9 @@ class AMQPClient(
         self._network_trace_params["amqpConnection"] = self._connection._container_id
         self._network_trace_params["amqpSession"] = self._session.name
         self._shutdown = False
+        self._keep_alive_thread = threading.Thread(target=self._keep_alive)
+        self._keep_alive_thread.daemon = True
+        self._keep_alive_thread.start()
 
     def close(self):
         """Close the client. This includes closing the Session
@@ -467,8 +461,8 @@ class AMQPClient(
                 self._mgmt_links[node] = mgmt_link
                 mgmt_link.open()
 
-        while not self.client_ready():
-            time.sleep(0.05)
+        # while not self.client_ready():
+        #     time.sleep(0.05)
 
         while not mgmt_link.ready():
             self._connection.listen(wait=False)
@@ -591,6 +585,7 @@ class SendClient(AMQPClient):
         """
         # pylint: disable=protected-access
         if not self._link:
+            _logger.debug("%s thread creating sender link", threading.current_thread().name)
             self._link = self._session.create_sender_link(
                 target_address=self.target,
                 link_credit=self._link_credit,
@@ -614,11 +609,14 @@ class SendClient(AMQPClient):
         :return: Whether the client can remain open for further work.
         :rtype: bool
         """
+        _logger.debug("%s thread listening on sender link", threading.current_thread().name)
+        # commented this b/c threading issue potentially of two threads trying to listen on the same link
         self._link.update_pending_deliveries()
         self._connection.listen(wait=self._socket_timeout, **kwargs)
         return True
 
     def _transfer_message(self, message_delivery, timeout=0):
+        _logger.debug("%s thread calling transfer message", threading.current_thread().name)
         message_delivery.state = MessageDeliveryState.WaitingForSendAck
         on_send_complete = partial(self._on_send_complete, message_delivery)
         delivery = self._link.send_transfer(
@@ -643,6 +641,7 @@ class SendClient(AMQPClient):
         message_delivery.error = error
 
     def _on_send_complete(self, message_delivery, reason, state):
+        _logger.debug("%s thread calling on send complete", threading.current_thread().name)
         message_delivery.reason = reason
         if reason == LinkDeliverySettleReason.DISPOSITION_RECEIVED:
             if state and SEND_DISPOSITION_ACCEPT in state:
@@ -672,18 +671,17 @@ class SendClient(AMQPClient):
             )
 
     def _send_message_impl(self, message, *, timeout: float = 0):
+        _logger.debug("%s SEND_MESSAGE_IMPL", threading.current_thread().name)
         expire_time = (time.time() + timeout) if timeout else None
         self.open()
         message_delivery = _MessageDelivery(
             message, MessageDeliveryState.WaitingToBeSent, expire_time
         )
-        while not self.client_ready():
-            time.sleep(0.05)
-
         self._transfer_message(message_delivery, timeout)
-        running = True
-        while running and message_delivery.state not in MESSAGE_DELIVERY_DONE_STATES:
-            running = self.do_work()
+        while message_delivery.state not in MESSAGE_DELIVERY_DONE_STATES:
+            print("Message delivery state: ", message_delivery.state)
+            time.sleep(1)
+            _logger.debug(f"Message delivery state: {message_delivery.state}, on thread: {threading.current_thread().name}")
         if message_delivery.state not in MESSAGE_DELIVERY_DONE_STATES:
             raise MessageException(
                 condition=ErrorCondition.ClientError,
@@ -840,6 +838,7 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         """
         # pylint: disable=protected-access
         if not self._link:
+            _logger.debug("%s thread creating receiver link", threading.current_thread().name)
             self._link = self._session.create_receiver_link(
                 source_address=self.source,
                 link_credit=0,  # link_credit=0 on flow frame sent before client is ready
@@ -865,6 +864,7 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         :return: Whether the client can remain open for further work.
         :rtype: bool
         """
+        _logger.debug("%s thread listening on receiver link", threading.current_thread().name)
         try:
             if self._link.total_link_credit <= 0:
                 self._link.flow(link_credit=self._link_credit)
@@ -886,62 +886,12 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         :param frame: Received frame.
         :type frame: tuple
         """
+        _logger.debug("%s thread messaged received on receiver link", threading.current_thread().name)
         self._last_activity_timestamp = time.time()
         if self._message_received_callback:
             self._message_received_callback(message)
         if not self._streaming_receive:
             self._received_messages.put((frame, message))
-
-    def _receive_message_batch_impl(
-        self,
-        max_batch_size: Optional[int] = None,
-        on_message_received: Optional[Callable] = None,
-        timeout: float = 0,
-    ):
-        self._message_received_callback = on_message_received
-        max_batch_size = max_batch_size or self._link_credit
-        timeout = time.time() + timeout if timeout else 0
-        receiving = True
-        batch: List[Message] = []
-        self.open()
-        while len(batch) < max_batch_size:
-            try:
-                # TODO: This drops the transfer frame data
-                _, message = self._received_messages.get_nowait()
-                batch.append(message)
-                self._received_messages.task_done()
-            except queue.Empty:
-                break
-        else:
-            return batch
-
-        to_receive_size = max_batch_size - len(batch)
-        before_queue_size = self._received_messages.qsize()
-
-        while receiving and to_receive_size > 0:
-            if timeout and time.time() > timeout:
-                break
-
-            receiving = self.do_work(batch=to_receive_size)
-            cur_queue_size = self._received_messages.qsize()
-            # after do_work, check how many new messages have been received since previous iteration
-            received = cur_queue_size - before_queue_size
-            if to_receive_size < max_batch_size and received == 0:
-                # there are already messages in the batch, and no message is received in the current cycle
-                # return what we have
-                break
-
-            to_receive_size -= received
-            before_queue_size = cur_queue_size
-
-        while len(batch) < max_batch_size:
-            try:
-                _, message = self._received_messages.get_nowait()
-                batch.append(message)
-                self._received_messages.task_done()
-            except queue.Empty:
-                break
-        return batch
 
     def close(self):
         self._received_messages = queue.Queue()
@@ -1007,18 +957,19 @@ class ReceiveClient(AMQPClient): # pylint:disable=too-many-instance-attributes
         """
         self.open()
         self._timeout_reached = False
-        receiving = True
+        # receiving = True
         message = None
         self._last_activity_timestamp = time.time()
         self._timeout = timeout if timeout else self._timeout
         try:
-            while receiving and not self._timeout_reached:
+            while not self._timeout_reached:          
+                self._link.flow(link_credit=self._link_credit)
                 if self._timeout > 0:
                     if time.time() - self._last_activity_timestamp >= self._timeout:
                         self._timeout_reached = True
 
                 if not self._timeout_reached:
-                    receiving = self.do_work()
+                    time.sleep(1)
 
                 while not self._received_messages.empty():
                     message = self._received_messages.get()
