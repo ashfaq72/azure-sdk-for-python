@@ -9,7 +9,7 @@ extends:
         - task: AzureCLI@2
           displayName: Set OIDC variables
           inputs:
-            azureSubscription: azure-sdk-tests
+            azureSubscription: azure-sdk-tests-public
             scriptType: pscore
             scriptLocation: inlineScript
             addSpnToEnvironment: true

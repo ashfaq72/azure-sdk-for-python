@@ -9,7 +9,7 @@ extends:
         - task: AzureCLI@2
           displayName: Set OIDC variables
           inputs:
-            azureSubscription: azure-sdk-tests
+            azureSubscription: azure-sdk-tests-public
             scriptType: pscore
             scriptLocation: inlineScript
             addSpnToEnvironment: true
@@ -18,7 +18,6 @@ extends:
       ServiceDirectory: monitor
       TestTimeoutInMinutes: 300
       BuildTargetingString: azure-monitor-*
-      SupportedClouds: 'Public,UsGov,China'
       EnvVars:
         AZURE_SUBSCRIPTION_ID: $(MONITOR_SUBSCRIPTION_ID)
         AZURE_TEST_RUN_LIVE: 'true'
