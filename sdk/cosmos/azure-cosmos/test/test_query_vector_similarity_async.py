@@ -25,7 +25,7 @@ def verify_ordering(item_list, distance_function):
             assert item_list[i]["SimilarityScore"] >= item_list[i + 1]["SimilarityScore"]
 
 
-class TestVectorSimilarityQueryAsync(unittest.TestCase):
+class TestVectorSimilarityQueryAsync(unittest.IsolatedAsyncioTestCase):
     """Test to check vector similarity queries behavior."""
 
     created_db: DatabaseProxy = None
@@ -198,7 +198,7 @@ class TestVectorSimilarityQueryAsync(unittest.TestCase):
         async for items in await pages.__anext__():
             count += 1
             all_fetched_res.extend(items)
-        assert count >= 3
+        assert count == 3
         assert len(all_fetched_res) == 8
         verify_ordering(all_fetched_res, "cosine")
 
