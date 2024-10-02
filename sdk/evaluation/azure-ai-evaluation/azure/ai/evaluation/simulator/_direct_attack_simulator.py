@@ -75,7 +75,7 @@ class DirectAttackSimulator:
                 target=ErrorTarget.DIRECT_ATTACK_SIMULATOR,
                 category=e.category,
                 blame=e.blame,
-            )
+            ) from e
 
         self.credential = credential or DefaultAzureCredential()
         self.azure_ai_project = azure_ai_project

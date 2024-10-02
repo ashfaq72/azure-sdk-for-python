@@ -59,7 +59,7 @@ class AdversarialSimulator:
                 target=ErrorTarget.ADVERSARIAL_SIMULATOR,
                 category=e.category,
                 blame=e.blame,
-            )
+            ) from e
 
         credential = credential or DefaultAzureCredential()
         self.azure_ai_project = azure_ai_project
