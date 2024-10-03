@@ -119,6 +119,9 @@ def load(  # pylint: disable=docstring-keyword-should-match-keyword-only
     :keyword replica_discovery_enabled: Optional flag to enable or disable the discovery of replica endpoints. Default
      is True.
     :paramtype replica_discovery_enabled: bool
+    :keyword load_balancing_enabled: Optional flag to enable or disable the load balancing of replica endpoints. Default
+     is False.
+    :paramtype load_balancing_enabled: bool
     """
 
 
@@ -179,6 +182,9 @@ def load(  # pylint: disable=docstring-keyword-should-match-keyword-only
     :keyword replica_discovery_enabled: Optional flag to enable or disable the discovery of replica endpoints. Default
      is True.
     :paramtype replica_discovery_enabled: bool
+    :keyword load_balancing_enabled: Optional flag to enable or disable the load balancing of replica endpoints. Default
+     is False.
+    :paramtype load_balancing_enabled: bool
     """
 
 
@@ -253,7 +259,9 @@ def _delay_failure(start_time: datetime.datetime) -> None:
         time.sleep((min_time - (current_time - start_time)).total_seconds())
 
 
-def _get_headers(headers, request_type, replica_count, uses_feature_flags, feature_filters_used, uses_key_vault) -> str:
+def _get_headers(
+    headers, request_type, replica_count, uses_feature_flags, feature_filters_used, uses_key_vault
+) -> Dict[str, str]:
     if os.environ.get(REQUEST_TRACING_DISABLED_ENVIRONMENT_VARIABLE, default="").lower() == "true":
         return headers
     correlation_context = "RequestType=" + request_type
@@ -477,6 +485,7 @@ class AzureAppConfigurationProvider(Mapping[str, Union[str, JSON]]):  # pylint: 
             replica_discovery_enabled=kwargs.pop("replica_discovery_enabled", True),
             min_backoff_sec=min_backoff,
             max_backoff_sec=max_backoff,
+            load_balance=kwargs.pop("load_balancing_enabled", False),
             **kwargs
         )
         self._dict: Dict[str, Any] = {}
@@ -528,7 +537,7 @@ class AzureAppConfigurationProvider(Mapping[str, Union[str, JSON]]):  # pylint: 
         exception: Exception = RuntimeError(error_message)
         try:
             self._replica_client_manager.refresh_clients()
-            active_clients = self._replica_client_manager.get_active_clients()
+            self._replica_client_manager.find_active_clients()
 
             headers = _get_headers(
                 kwargs.pop("headers", {}),
@@ -538,7 +547,11 @@ class AzureAppConfigurationProvider(Mapping[str, Union[str, JSON]]):  # pylint: 
                 self._feature_filter_usage,
                 self._uses_key_vault,
             )
-            for client in active_clients:
+
+            while self._replica_client_manager.has_next_client():
+                client = self._replica_client_manager.get_next_client()
+                if not client:
+                    return
                 try:
                     if self._refresh_on:
                         need_refresh, self._refresh_on, configuration_settings = client.refresh_configuration_settings(
@@ -556,11 +569,13 @@ class AzureAppConfigurationProvider(Mapping[str, Union[str, JSON]]):  # pylint: 
                         if need_refresh:
                             self._dict = configuration_settings_processed
                     if self._feature_flag_refresh_enabled:
-                        need_ff_refresh, self._refresh_on_feature_flags, feature_flags, filters_used = (
+                        need_ff_refresh, refresh_on_feature_flags, feature_flags, filters_used = (
                             client.refresh_feature_flags(
                                 self._refresh_on_feature_flags, self._feature_flag_selectors, headers, **kwargs
                             )
                         )
+                        if refresh_on_feature_flags:
+                            self._refresh_on_feature_flags = refresh_on_feature_flags
                         self._feature_filter_usage = filters_used
 
                         if need_refresh or need_ff_refresh:
@@ -586,9 +601,12 @@ class AzureAppConfigurationProvider(Mapping[str, Union[str, JSON]]):  # pylint: 
             self._refresh_lock.release()
 
     def _load_all(self, **kwargs):
-        active_clients = self._replica_client_manager.get_active_clients()
+        self._replica_client_manager.find_active_clients()
 
-        for client in active_clients:
+        while self._replica_client_manager.has_next_client():
+            client = self._replica_client_manager.get_next_client()
+            if not client:
+                return
             try:
                 configuration_settings, sentinel_keys = client.load_configuration_settings(
                     self._selects, self._refresh_on, **kwargs
