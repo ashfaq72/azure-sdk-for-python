@@ -1,15 +1,20 @@
 # ---------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
+from typing import Optional, cast
+
 from promptflow._utils.async_utils import async_run_allowing_running_loop
 
 from azure.ai.evaluation._common.constants import EvaluationMetrics
 from azure.ai.evaluation._common.rai_service import evaluate_with_rai_service
+from azure.ai.evaluation._common.utils import validate_azure_ai_project
 from azure.ai.evaluation._exceptions import ErrorBlame, ErrorCategory, ErrorTarget, EvaluationException
+from azure.ai.evaluation._model_configurations import AzureAIProject
+from azure.core.credentials import TokenCredential
 
 
 class _AsyncProtectedMaterialsEvaluator:
-    def __init__(self, azure_ai_project: dict, credential=None):
+    def __init__(self, azure_ai_project: AzureAIProject, credential: Optional[TokenCredential] = None):
         self._azure_ai_project = azure_ai_project
         self._credential = credential
 
@@ -85,7 +90,9 @@ class ProtectedMaterialsEvaluator:
     """
 
     def __init__(self, azure_ai_project: dict, credential=None):
-        self._async_evaluator = _AsyncProtectedMaterialsEvaluator(azure_ai_project, credential)
+        self._async_evaluator = _AsyncProtectedMaterialsEvaluator(
+            validate_azure_ai_project(azure_ai_project), cast(Optional[TokenCredential], credential)
+        )
 
     def __call__(self, *, query: str, response: str, **kwargs):
         """

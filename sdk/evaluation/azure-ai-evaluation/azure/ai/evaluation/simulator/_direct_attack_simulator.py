@@ -5,13 +5,14 @@
 import functools
 import logging
 from random import randint
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 from promptflow._sdk._telemetry import ActivityType, monitor_operation
 
+from azure.ai.evaluation._common.utils import validate_azure_ai_project
 from azure.ai.evaluation._exceptions import ErrorBlame, ErrorCategory, ErrorTarget, EvaluationException
-from azure.ai.evaluation._model_configurations import AzureAIProject
 from azure.ai.evaluation.simulator import AdversarialScenario
+from azure.core.credentials import TokenCredential
 from azure.identity import DefaultAzureCredential
 
 from ._adversarial_simulator import AdversarialSimulator
@@ -61,42 +62,29 @@ class DirectAttackSimulator:
     :type credential: ~azure.core.credentials.TokenCredential
     """
 
-    def __init__(self, *, azure_ai_project: AzureAIProject, credential=None):
+    def __init__(self, *, azure_ai_project: dict, credential=None):
         """Constructor."""
-        # check if azure_ai_project has the keys: subscription_id, resource_group_name, project_name, credential
-        if not all(key in azure_ai_project for key in ["subscription_id", "resource_group_name", "project_name"]):
-            msg = "azure_ai_project must contain keys: subscription_id, resource_group_name and project_name"
+
+        try:
+            self.azure_ai_project = validate_azure_ai_project(azure_ai_project)
+        except EvaluationException as e:
             raise EvaluationException(
-                message=msg,
-                internal_message=msg,
+                message=e.message,
+                internal_message=e.internal_message,
                 target=ErrorTarget.DIRECT_ATTACK_SIMULATOR,
-                category=ErrorCategory.MISSING_FIELD,
-                blame=ErrorBlame.USER_ERROR,
-            )
-        # check the value of the keys in azure_ai_project is not none
-        if not all(azure_ai_project[key] for key in ["subscription_id", "resource_group_name", "project_name"]):
-            msg = "subscription_id, resource_group_name and project_name keys cannot be None"
-            raise EvaluationException(
-                message=msg,
-                internal_message=msg,
-                target=ErrorTarget.DIRECT_ATTACK_SIMULATOR,
-                category=ErrorCategory.MISSING_FIELD,
-                blame=ErrorBlame.USER_ERROR,
-            )
-        if "credential" not in azure_ai_project and not credential:
-            credential = DefaultAzureCredential()
-        elif "credential" in azure_ai_project:
-            credential = azure_ai_project["credential"]
-        self.credential = credential
-        self.azure_ai_project = azure_ai_project
+                category=e.category,
+                blame=e.blame,
+            ) from e
+
+        self.credential = cast(Optional[TokenCredential], credential) or DefaultAzureCredential()
         self.token_manager = ManagedIdentityAPITokenManager(
             token_scope=TokenScope.DEFAULT_AZURE_MANAGEMENT,
             logger=logging.getLogger("AdversarialSimulator"),
-            credential=credential,
+            credential=self.credential,
         )
-        self.rai_client = RAIClient(azure_ai_project=azure_ai_project, token_manager=self.token_manager)
+        self.rai_client = RAIClient(azure_ai_project=self.azure_ai_project, token_manager=self.token_manager)
         self.adversarial_template_handler = AdversarialTemplateHandler(
-            azure_ai_project=azure_ai_project, rai_client=self.rai_client
+            azure_ai_project=self.azure_ai_project, rai_client=self.rai_client
         )
 
     def _ensure_service_dependencies(self):
@@ -222,7 +210,9 @@ class DirectAttackSimulator:
         if not randomization_seed:
             randomization_seed = randint(0, 1000000)
 
-        regular_sim = AdversarialSimulator(azure_ai_project=self.azure_ai_project, credential=self.credential)
+        regular_sim = AdversarialSimulator(
+            azure_ai_project=cast(dict, self.azure_ai_project), credential=self.credential
+        )
         regular_sim_results = await regular_sim(
             scenario=scenario,
             target=target,
@@ -235,7 +225,7 @@ class DirectAttackSimulator:
             randomize_order=True,
             randomization_seed=randomization_seed,
         )
-        jb_sim = AdversarialSimulator(azure_ai_project=self.azure_ai_project, credential=self.credential)
+        jb_sim = AdversarialSimulator(azure_ai_project=cast(dict, self.azure_ai_project), credential=self.credential)
         jb_sim_results = await jb_sim(
             scenario=scenario,
             target=target,
