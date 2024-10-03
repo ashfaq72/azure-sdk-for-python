@@ -3,28 +3,17 @@
 # Licensed under the MIT License.
 # ------------------------------------
 
-import functools
-import pytest
-from testcase import Document
-from asynctestcase import AsyncDocumentTranslationTest
-from preparer import (
-    DocumentTranslationPreparer,
-    DocumentTranslationClientPreparer as _DocumentTranslationClientPreparer,
-)
 from devtools_testutils.aio import recorded_by_proxy_async
-from azure.ai.translation.document import DocumentTranslationInput, TranslationTarget
-from azure.ai.translation.document.aio import DocumentTranslationClient
-from azure.core.exceptions import HttpResponseError
-
-DocumentTranslationClientPreparer = functools.partial(_DocumentTranslationClientPreparer, DocumentTranslationClient)
+from preparer import DocumentTranslationPreparer
+from tests.asynctestcase import DocumentTranslationTestAsync
+from tests.testHelper import TestHelper
 
 
-class TestCancelTranslation(AsyncDocumentTranslationTest):
+class TestCancelTranslationAsync(DocumentTranslationTestAsync, TestHelper):
 
     @DocumentTranslationPreparer()
-    @DocumentTranslationClientPreparer()
     @recorded_by_proxy_async
-    async def test_cancel_translation(self, **kwargs):
+    async def test_cancel_translation_async(self, **kwargs):
         """
         some notes (test sporadically failing):
         1. use a large number of translations
@@ -33,19 +22,18 @@ class TestCancelTranslation(AsyncDocumentTranslationTest):
         2. wait sometime after calling 'cancel' and before calling 'get status'
             - in order for the cancel status to propagate
         """
-        client = kwargs.pop("client")
-        variables = kwargs.pop("variables", {})
-        # submit translation operation
-        docs_count = 8  # large number of docs
-        poller = await self._begin_and_validate_translation_with_multiple_docs_async(
-            client, docs_count, wait=False, variables=variables
-        )
+        endpoint = kwargs.get("document_translation_endpoint")
+        storage_name = kwargs.get("document_translation_storage_name")
+        async_client = self.create_async_client(endpoint)
 
-        # cancel translation
-        await client.cancel_translation(poller.id)
-        await poller.result()
-        # check translation status
-        translation_details = await client.get_translation_status(poller.id)
-        assert translation_details.status in ["Canceled", "Canceling", "NotStarted"]
-        self._validate_translations(translation_details)
-        return variables
+        batch_requests = self.get_start_translation_details_mulitple_docs(storage_name)
+        poller, translation_id = await async_client.begin_start_translation(batch_requests)
+
+        # Cancel Translation
+        await async_client.cancel_translation(translation_id)
+
+        # Get Translation Status
+        translation_status = await async_client.get_translation_status(translation_id)
+        assert translation_id == translation_status.id
+        status = str(translation_status.status.value)
+        assert status in ["Cancelled", "Cancelling", "NotStarted"]

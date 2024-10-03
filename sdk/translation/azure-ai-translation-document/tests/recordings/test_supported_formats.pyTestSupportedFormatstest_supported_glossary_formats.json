@@ -1,0 +1,71 @@
+{
+  "Entries": [
+    {
+      "RequestUri": "https://Sanitized.cognitiveservices.azure.com/translator/document/formats?api-version=2024-05-01&type=glossary",
+      "RequestMethod": "GET",
+      "RequestHeaders": {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "User-Agent": "azsdk-python-ai-translation-document/1.1.0b1 Python/3.11.9 (Windows-10-10.0.26100-SP0)"
+      },
+      "RequestBody": null,
+      "StatusCode": 200,
+      "ResponseHeaders": {
+        "apim-request-id": "39923ef3-12bb-4d2f-817f-7b754a4b1f8d",
+        "Cache-Control": "public, max-age=1",
+        "Content-Type": "application/json; charset=utf-8",
+        "Date": "Thu, 26 Sep 2024 03:34:53 GMT",
+        "ETag": "\"DC52A4CD5225E18658C49A99DAD58A82622EF05AFA3E2C9D95A918BC893DF7AD\"",
+        "Retry-After": "1",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+        "Transfer-Encoding": "chunked",
+        "X-Content-Type-Options": "nosniff",
+        "x-ms-region": "West US",
+        "X-RequestId": "39923ef3-12bb-4d2f-817f-7b754a4b1f8d"
+      },
+      "ResponseBody": {
+        "value": [
+          {
+            "format": "XLIFF",
+            "fileExtensions": [
+              ".xlf"
+            ],
+            "contentTypes": [
+              "application/xliff+xml"
+            ],
+            "defaultVersion": "1.2",
+            "versions": [
+              "1.0",
+              "1.1",
+              "1.2"
+            ],
+            "type": "Glossary"
+          },
+          {
+            "format": "TSV",
+            "fileExtensions": [
+              ".tsv",
+              ".tab"
+            ],
+            "contentTypes": [
+              "text/tab-separated-values"
+            ],
+            "type": "Glossary"
+          },
+          {
+            "format": "CSV",
+            "fileExtensions": [
+              ".csv"
+            ],
+            "contentTypes": [
+              "text/csv"
+            ],
+            "type": "Glossary"
+          }
+        ]
+      }
+    }
+  ],
+  "Variables": {}
+}

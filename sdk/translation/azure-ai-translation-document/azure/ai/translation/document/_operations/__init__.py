@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 
 from ._patch import DocumentTranslationClientOperationsMixin
-from ._patch import SingleDocumentTranslationClientOperationsMixin
+from ._operations import SingleDocumentTranslationClientOperationsMixin
 
 
 from ._patch import patch_sdk as _patch_sdk

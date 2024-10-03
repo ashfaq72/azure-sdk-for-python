@@ -3,48 +3,28 @@
 # Licensed under the MIT License.
 # ------------------------------------
 
-import functools
-import pytest
-from testcase import Document
-from testcase import DocumentTranslationTest
-from preparer import (
-    DocumentTranslationPreparer,
-    DocumentTranslationClientPreparer as _DocumentTranslationClientPreparer,
-)
 from devtools_testutils import recorded_by_proxy
-from azure.core.exceptions import HttpResponseError
-from azure.ai.translation.document import DocumentTranslationClient, DocumentTranslationInput, TranslationTarget
+from preparer import DocumentTranslationPreparer
+from tests.testcase import DocumentTranslationTest
+from tests.testHelper import TestHelper
 
-DocumentTranslationClientPreparer = functools.partial(_DocumentTranslationClientPreparer, DocumentTranslationClient)
 
-
-class TestCancelTranslation(DocumentTranslationTest):
+class TestCancelTranslation(DocumentTranslationTest, TestHelper):
     @DocumentTranslationPreparer()
-    @DocumentTranslationClientPreparer()
     @recorded_by_proxy
     def test_cancel_translation(self, **kwargs):
-        """
-        some notes (test sporadically failing):
-        1. use a large number of translations
-            - because when running tests the translations sometimes finishes with status 'Succeeded'
-              before we call the 'cancel' endpoint!
-        2. wait sometime after calling 'cancel' and before calling 'get status'
-            - in order for the cancel status to propagate
-        """
-        client = kwargs.pop("client")
-        variables = kwargs.pop("variables", {})
+        endpoint = kwargs.get("document_translation_endpoint")
+        storage_name = kwargs.get("document_translation_storage_name")
+        client = self.create_client(endpoint)
 
-        # submit translation operation
-        docs_count = 8  # large number of docs
-        poller = self._begin_and_validate_translation_with_multiple_docs(
-            client, docs_count, wait=False, variables=variables
-        )
+        batch_requests = self.get_start_translation_details_mulitple_docs(storage_name)
+        poller, translation_id = client.begin_start_translation(batch_requests)
 
-        # cancel translation
-        client.cancel_translation(poller.id)
-        poller.result()
-        # check translation status
-        translation_details = client.get_translation_status(poller.id)
-        assert translation_details.status in ["Canceled", "Canceling", "NotStarted"]
-        self._validate_translations(translation_details)
-        return variables
+        # Cancel Translation
+        client.cancel_translation(translation_id)
+
+        # Get Translation Status
+        translation_status = client.get_translation_status(translation_id)
+        assert translation_id == translation_status.id
+        status = str(translation_status.status.value)
+        assert status in ["Cancelled", "Cancelling", "NotStarted"]
